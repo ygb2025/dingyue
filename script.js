@@ -1,5 +1,5 @@
 // JavaScript for subscription management app
-// Future tasks will populate this file.
+// 订阅管理应用的主要JavaScript代码
 
 console.log("script.js loaded");
 
@@ -12,6 +12,10 @@ if ('serviceWorker' in navigator) {
             })
             .catch(error => {
                 console.error('Service Worker 注册失败: ', error);
+                // 如果是MIME类型错误，可能是因为使用了简单的HTTP服务器
+                if (error.name === 'SecurityError' && error.message.includes('MIME type')) {
+                    console.warn('Service Worker 注册失败可能是因为使用了简单的HTTP服务器，这在开发环境中是正常的。在生产环境中，请使用正确配置的Web服务器。');
+                }
             });
     });
 }
@@ -29,78 +33,14 @@ const presetServices = [
 ];
 
 document.addEventListener('DOMContentLoaded', () => {
-    const subscriptionForm = document.getElementById('add-subscription-form');
-    const subscriptionListDiv = document.getElementById('subscription-list');
-    const submitButton = subscriptionForm.querySelector('button[type="submit"]');
-    const billingCycleSelect = document.getElementById('billing-cycle');
-    const startDateInput = document.getElementById('start-date');
-    const expiryDateInput = document.getElementById('expiry-date');
-    const currencyInput = document.getElementById('currency');
-    const categorySelect = document.getElementById('category');
-    const categoryFilterSelect = document.getElementById('category-filter');
-    const settingsToggle = document.getElementById('settings-toggle');
-    const settingsPanel = document.getElementById('settings-panel');
-    const localCurrencyInput = document.getElementById('local-currency');
-    const saveSettingsButton = document.getElementById('save-settings');
-    const notificationPanel = document.getElementById('notification-panel');
-    const notificationContent = document.getElementById('notification-content');
-    const closeNotificationButton = document.getElementById('close-notification');
-    const apiKeyInput = document.getElementById('api-key');
-    const refreshRatesButton = document.getElementById('refresh-rates');
-    const ratesStatusDiv = document.getElementById('rates-status');
-    const developerModeCheckbox = document.getElementById('developer-mode');
-    const apiCallCountSpan = document.getElementById('api-call-count');
-    const refreshFrequencySpan = document.getElementById('refresh-frequency');
-    const lastRefreshTimeSpan = document.getElementById('last-refresh-time');
-    const themeSelect = document.getElementById('theme-select'); // 新增：主题选择器
-
-    // 通知设置相关元素
-    const enableNotificationsCheckbox = document.getElementById('enable-notifications');
-    const notificationSettingsDiv = document.getElementById('notification-settings');
-    const notificationDaysInput = document.getElementById('notification-days');
-    const notificationDailyCheckbox = document.getElementById('notification-daily');
-    const testNotificationButton = document.getElementById('test-notification');
-    const notificationStatusDiv = document.getElementById('notification-status');
-
-    // 数据导入/导出相关元素
-    const exportJsonButton = document.getElementById('export-json');
-    const exportCsvButton = document.getElementById('export-csv');
-    const importFileInput = document.getElementById('import-file');
-    const selectedFileNameSpan = document.getElementById('selected-file-name');
-    const importReplaceCheckbox = document.getElementById('import-replace');
-    const importButton = document.getElementById('import-button');
-    const importStatusDiv = document.getElementById('import-status');
-
-    // 统计相关元素
-    const totalSubscriptionsElement = document.getElementById('total-subscriptions');
-    const monthlyTotalElement = document.getElementById('monthly-total');
-    const annualTotalElement = document.getElementById('annual-total');
-    const categoryChartCanvas = document.getElementById('category-chart');
-    const trendChartCanvas = document.getElementById('trend-chart');
-    const trendTimeRangeSelect = document.getElementById('trend-time-range'); // 新增时间范围选择器
-
-    // 预设服务模态框相关元素
-    const showPresetModalBtn = document.getElementById('show-preset-modal-btn');
-    const closePresetModalBtn = document.getElementById('close-preset-modal-btn');
-    const presetServiceModal = document.getElementById('preset-service-modal');
-    const searchPresetServiceInput = document.getElementById('search-preset-service');
-    const presetServiceListDiv = document.getElementById('preset-service-list');
-    const paymentAccountInput = document.getElementById('payment-account'); // 新增：支付账户输入框
-    const priceHistoryNotesInput = document.getElementById('price-history-notes'); // 新增：价格历史输入框
-
-    // 添加"自动计算"复选框到表单中
-    const expiryDateContainer = expiryDateInput.parentElement;
-    const autoCalculateCheckbox = document.createElement('div');
-    autoCalculateCheckbox.innerHTML = `
-        <input type="checkbox" id="auto-calculate" name="auto-calculate" checked>
-        <label for="auto-calculate">自动计算到期日期（基于周期和首次订阅日期）</label>
-    `;
-    expiryDateContainer.insertAdjacentElement('afterend', autoCalculateCheckbox);
-    const autoCalculateCheck = document.getElementById('auto-calculate');
+    // 将全局变量的声明和初始化移到 DOMContentLoaded 回调函数的顶部
+    window.subscriptions = [];
+    window.STORAGE_KEY = 'subscriptionsData';
+    window.editingId = null;
 
     // 设置相关功能
-    const SETTINGS_KEY = 'subscriptionAppSettings';
-    let appSettings = {
+    window.SETTINGS_KEY = 'subscriptionAppSettings';
+    window.appSettings = {
         localCurrency: 'CNY',
         apiKey: 'ca228e734975f64f02e34368', // 默认使用提供的API Key
         notificationDismissed: false,
@@ -118,12 +58,393 @@ document.addEventListener('DOMContentLoaded', () => {
         theme: 'light' // 新增：默认主题为亮色
     };
 
-    const EXCHANGE_RATES_KEY = 'subscriptionExchangeRates';
-    let exchangeRatesCache = {
+    window.EXCHANGE_RATES_KEY = 'subscriptionExchangeRates';
+    window.exchangeRatesCache = {
         timestamp: null,
         base: '',
         rates: {}
     };
+
+    // 声明DOM元素变量 (初始化为 null)
+    window.subscriptionForm = null;
+    window.subscriptionListDiv = null;
+    window.submitButton = null;
+    window.billingCycleSelect = null;
+    window.startDateInput = null;
+    window.expiryDateInput = null;
+    window.currencyInput = null;
+    window.categorySelect = null;
+    window.categoryFilterSelect = null;
+    window.settingsToggle = null;
+    window.settingsPanel = null;
+    window.localCurrencyInput = null;
+    window.saveSettingsButton = null;
+    window.notificationPanel = null;
+    window.notificationContent = null;
+    window.closeNotificationButton = null;
+    window.apiKeyInput = null;
+    window.refreshRatesButton = null;
+    window.ratesStatusDiv = null;
+    window.developerModeCheckbox = null;
+    window.apiCallCountSpan = null;
+    window.refreshFrequencySpan = null;
+    window.lastRefreshTimeSpan = null;
+    window.themeSelect = null;
+    window.enableNotificationsCheckbox = null;
+    window.notificationSettingsDiv = null;
+    window.notificationDaysInput = null;
+    window.notificationDailyCheckbox = null;
+    window.testNotificationButton = null;
+    window.notificationStatusDiv = null;
+    window.exportJsonButton = null;
+    window.exportCsvButton = null;
+    window.importFileInput = null;
+    window.selectedFileNameSpan = null;
+    window.importReplaceCheckbox = null;
+    window.importButton = null;
+    window.importStatusDiv = null;
+    window.totalSubscriptionsElement = null;
+    window.monthlyTotalElement = null;
+    window.annualTotalElement = null;
+    window.categoryChartCanvas = null;
+    window.trendChartCanvas = null;
+    window.valueAnalysisChartCanvas = null;
+    window.trendTimeRangeSelect = null;
+    window.categoryChartTypeSelect = null;
+    window.trendChartTypeSelect = null;
+    window.valueAnalysisTypeSelect = null;
+    window.showPresetModalBtn = null;
+    window.closePresetModalBtn = null;
+    window.presetServiceModal = null;
+    window.searchPresetServiceInput = null;
+    window.presetServiceListDiv = null;
+    window.paymentAccountInput = null;
+    window.priceHistoryNotesInput = null;
+    window.expiryDateContainer = null;
+    window.autoCalculateCheckbox = null;
+    window.autoCalculateCheck = null;
+
+    // --- BEGIN: NEW BOTTOM NAVIGATION AND VIEW SWITCHING LOGIC ---
+    const navButtons = document.querySelectorAll('#bottom-navigation .nav-item');
+    const views = document.querySelectorAll('.view-content');
+    const defaultView = 'view-subscriptions'; // ID of the default view
+
+    // Function to initialize elements and event listeners for a specific view
+    // This helps to avoid errors when elements are not yet visible/exist in the DOM
+    function initializeViewSpecificElements(viewId) {
+        console.log(`Attempting to initialize elements for view: ${viewId}`);
+        if (viewId === 'view-subscriptions') {
+            initializeSubscriptionsView();
+        } else if (viewId === 'view-settings') {
+            initializeSettingsView();
+        } else if (viewId === 'view-analysis') {
+            initializeAnalysisView();
+        } else if (viewId === 'view-discovery') {
+            initializeDiscoveryView();
+        }
+        console.log(`Initialization completed for ${viewId}`);
+    }
+
+    function switchView(viewId) {
+        views.forEach(view => {
+            if (view.id === viewId) {
+                view.classList.remove('hidden');
+                // Initialize elements for the view if not already done
+                if (!view.dataset.initialized) {
+                    initializeViewSpecificElements(viewId);
+                    view.dataset.initialized = 'true';
+                }
+            } else {
+                view.classList.add('hidden');
+            }
+        });
+
+        // Highlight active nav button
+        navButtons.forEach(button => {
+            // Ensure viewId is a string and button.dataset.view exists
+            if (button.dataset.view && typeof viewId === 'string' && button.dataset.view === viewId.replace('view-', '')) {
+                button.classList.add('text-blue-600', 'font-semibold');
+                button.classList.remove('text-gray-700');
+            } else {
+                button.classList.remove('text-blue-600', 'font-semibold');
+                button.classList.add('text-gray-700');
+            }
+        });
+        console.log(`Switched to view: ${viewId}`);
+    }
+
+    if (navButtons.length > 0) {
+        navButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const viewId = `view-${button.dataset.view}`;
+                switchView(viewId);
+            });
+        });
+    } else {
+        console.warn("No navigation buttons found.");
+    }
+
+    // Set initial view
+    if (views.length > 0) {
+        views.forEach(view => {
+            if (view.id !== defaultView) {
+                view.classList.add('hidden');
+            } else {
+                // For the default view, remove hidden and initialize
+                view.classList.remove('hidden');
+                if (!view.dataset.initialized) { // Should typically not be initialized yet
+                    initializeViewSpecificElements(defaultView);
+                    view.dataset.initialized = 'true';
+                }
+            }
+        });
+    } else {
+        console.warn("No view containers found.");
+    }
+    // --- END: NEW BOTTOM NAVIGATION AND VIEW SWITCHING LOGIC ---
+
+    // 安全地获取DOM元素的函数
+    function getElement(id) {
+        const element = document.getElementById(id);
+        if (!element) {
+            console.warn(`Element with id '${id}' not found`);
+        }
+        return element;
+    }
+
+    // 安全地添加事件监听器的函数
+    function addEventListenerSafely(element, event, handler) {
+        if (element) {
+            element.addEventListener(event, handler);
+        } else {
+            console.warn(`Cannot add ${event} event listener to undefined element`);
+        }
+    }
+
+
+
+    // 初始化订阅视图的元素
+    function initializeSubscriptionsView() {
+        console.log("Initializing subscriptions view elements");
+
+        try {
+            // 获取订阅表单相关元素
+            window.subscriptionForm = getElement('add-subscription-form');
+            window.subscriptionListDiv = getElement('subscription-list');
+
+            if (window.subscriptionForm) {
+                window.submitButton = window.subscriptionForm.querySelector('button[type="submit"]');
+            } else {
+                console.warn("Subscription form not found, cannot get submit button");
+            }
+
+            window.billingCycleSelect = getElement('billing-cycle');
+            window.startDateInput = getElement('start-date');
+            window.expiryDateInput = getElement('expiry-date');
+            window.currencyInput = getElement('currency');
+            window.categorySelect = getElement('category');
+            window.categoryFilterSelect = getElement('category-filter');
+
+            // 预设服务模态框相关元素
+            window.showPresetModalBtn = getElement('show-preset-modal-btn');
+            window.closePresetModalBtn = getElement('close-preset-modal-btn');
+            window.presetServiceModal = getElement('preset-service-modal');
+            window.searchPresetServiceInput = getElement('search-preset-service');
+            window.presetServiceListDiv = getElement('preset-service-list');
+            window.paymentAccountInput = getElement('payment-account');
+            window.priceHistoryNotesInput = getElement('price-history-notes');
+
+            // 添加"自动计算"复选框到表单中
+            if (window.expiryDateInput) {
+                window.expiryDateContainer = window.expiryDateInput.parentElement;
+                if (window.expiryDateContainer) {
+                    window.autoCalculateCheckbox = document.createElement('div');
+                    window.autoCalculateCheckbox.innerHTML = `
+                        <input type="checkbox" id="auto-calculate" name="auto-calculate" checked>
+                        <label for="auto-calculate">自动计算到期日期（基于周期和首次订阅日期）</label>
+                    `;
+                    window.expiryDateContainer.insertAdjacentElement('afterend', window.autoCalculateCheckbox);
+                    window.autoCalculateCheck = getElement('auto-calculate');
+                }
+            }
+
+            // 设置事件监听器
+            if (window.subscriptionForm) {
+                window.subscriptionForm.addEventListener('submit', handleSubscriptionFormSubmit);
+            }
+
+            addEventListenerSafely(window.billingCycleSelect, 'change', updateExpiryDate);
+            addEventListenerSafely(window.startDateInput, 'change', updateExpiryDate);
+            addEventListenerSafely(window.autoCalculateCheck, 'change', function() {
+                if (this.checked) {
+                    updateExpiryDate();
+                }
+            });
+
+            addEventListenerSafely(window.showPresetModalBtn, 'click', showPresetModal);
+            addEventListenerSafely(window.closePresetModalBtn, 'click', hidePresetModal);
+            addEventListenerSafely(window.searchPresetServiceInput, 'input', filterPresetServices);
+
+            if (window.categoryFilterSelect) {
+                window.categoryFilterSelect.addEventListener('change', function() {
+                    renderSubscriptions(this.value);
+                });
+            }
+
+            // 加载订阅数据
+            loadSubscriptions();
+            renderSubscriptions();
+        } catch (error) {
+            console.error("初始化订阅视图时出错:", error);
+        }
+    }
+
+    // 初始化设置视图的元素
+    function initializeSettingsView() {
+        console.log("Initializing settings view elements");
+
+        try {
+            // 获取设置相关元素
+            window.settingsToggle = getElement('settings-toggle');
+            window.settingsPanel = getElement('settings-panel');
+            window.localCurrencyInput = getElement('local-currency');
+            window.saveSettingsButton = getElement('save-settings');
+            window.apiKeyInput = getElement('api-key');
+            window.refreshRatesButton = getElement('refresh-rates');
+            window.ratesStatusDiv = getElement('rates-status');
+            window.developerModeCheckbox = getElement('developer-mode');
+            window.apiCallCountSpan = getElement('api-call-count');
+            window.refreshFrequencySpan = getElement('refresh-frequency');
+            window.lastRefreshTimeSpan = getElement('last-refresh-time');
+            window.themeSelect = getElement('theme-select');
+
+            // 通知设置相关元素
+            window.enableNotificationsCheckbox = getElement('enable-notifications');
+            window.notificationSettingsDiv = getElement('notification-settings');
+            window.notificationDaysInput = getElement('notification-days');
+            window.notificationDailyCheckbox = getElement('notification-daily');
+            window.testNotificationButton = getElement('test-notification');
+            window.notificationStatusDiv = getElement('notification-status');
+
+            // 数据导入/导出相关元素
+            window.exportJsonButton = getElement('export-json');
+            window.exportCsvButton = getElement('export-csv');
+            window.importFileInput = getElement('import-file');
+            window.selectedFileNameSpan = getElement('selected-file-name');
+            window.importReplaceCheckbox = getElement('import-replace');
+            window.importButton = getElement('import-button');
+            window.importStatusDiv = getElement('import-status');
+
+            // 设置事件监听器
+            addEventListenerSafely(window.settingsToggle, 'click', function() {
+                if (window.settingsPanel) {
+                    window.settingsPanel.classList.toggle('hidden');
+                }
+            });
+
+            addEventListenerSafely(window.apiKeyInput, 'input', updateDeveloperModeCheckbox);
+
+            addEventListenerSafely(window.saveSettingsButton, 'click', function() {
+                saveSettings();
+                if (window.settingsPanel) {
+                    window.settingsPanel.classList.add('hidden');
+                }
+                renderSubscriptions();
+
+                // 如果启用了通知，立即检查订阅
+                if (appSettings.enableNotifications && Notification.permission === 'granted') {
+                    checkSubscriptionsAndNotify();
+                }
+            });
+
+            addEventListenerSafely(window.refreshRatesButton, 'click', refreshRates);
+            addEventListenerSafely(window.enableNotificationsCheckbox, 'change', toggleNotificationSettings);
+            addEventListenerSafely(window.testNotificationButton, 'click', testNotification);
+            addEventListenerSafely(window.themeSelect, 'change', function() {
+                applyTheme(this.value);
+            });
+
+            addEventListenerSafely(window.exportJsonButton, 'click', exportDataAsJson);
+            addEventListenerSafely(window.exportCsvButton, 'click', exportDataAsCsv);
+            addEventListenerSafely(window.importFileInput, 'change', handleFileSelect);
+            addEventListenerSafely(window.importButton, 'click', importData);
+
+            // 加载设置
+            loadSettings();
+            loadExchangeRatesCache();
+        } catch (error) {
+            console.error("初始化设置视图时出错:", error);
+        }
+    }
+
+    // 初始化分析视图的元素
+    function initializeAnalysisView() {
+        console.log("Initializing analysis view elements");
+
+        try {
+            // 获取统计相关元素
+            window.totalSubscriptionsElement = getElement('total-subscriptions');
+            window.monthlyTotalElement = getElement('monthly-total');
+            window.annualTotalElement = getElement('annual-total');
+            window.categoryChartCanvas = getElement('category-chart');
+            window.trendChartCanvas = getElement('trend-chart');
+            window.valueAnalysisChartCanvas = getElement('value-analysis-chart');
+            window.trendTimeRangeSelect = getElement('trend-time-range');
+            window.categoryChartTypeSelect = getElement('category-chart-type');
+            window.trendChartTypeSelect = getElement('trend-chart-type');
+            window.valueAnalysisTypeSelect = getElement('value-analysis-type');
+
+            // 设置事件监听器
+            addEventListenerSafely(window.trendTimeRangeSelect, 'change', updateTrendChart);
+            addEventListenerSafely(window.categoryChartTypeSelect, 'change', updateCategoryChart);
+            addEventListenerSafely(window.trendChartTypeSelect, 'change', updateTrendChart);
+            addEventListenerSafely(window.valueAnalysisTypeSelect, 'change', updateValueAnalysisChart);
+
+            // 更新统计数据
+            updateStatistics();
+        } catch (error) {
+            console.error("初始化分析视图时出错:", error);
+        }
+    }
+
+    // 初始化发现视图的元素
+    function initializeDiscoveryView() {
+        console.log("Initializing discovery view elements");
+
+        try {
+            // 获取发现相关元素
+            // 这里可以添加发现视图的元素初始化
+
+            // 更新汇率信息
+            updateExchangeRateInfo();
+        } catch (error) {
+            console.error("初始化发现视图时出错:", error);
+        }
+    }
+
+    // 初始化通知面板
+    function initializeNotificationPanel() {
+        // 通知面板相关元素
+        window.notificationPanel = getElement('notification-panel');
+        window.notificationContent = getElement('notification-content');
+        window.closeNotificationButton = getElement('close-notification');
+
+        // 设置通知面板事件监听器
+        addEventListenerSafely(window.closeNotificationButton, 'click', function() {
+            if (window.notificationPanel) {
+                window.notificationPanel.classList.add('hidden');
+
+                window.appSettings.notificationDismissed = true;
+                window.appSettings.lastNotificationDate = new Date().toISOString().split('T')[0];
+                localStorage.setItem(window.SETTINGS_KEY, JSON.stringify(window.appSettings));
+            }
+        });
+    }
+
+    // 在DOMContentLoaded事件中初始化通知面板
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeNotificationPanel();
+    });
 
     // 获取刷新频率（小时）
     function getRefreshFrequency() {
@@ -146,20 +467,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 更新API使用情况显示
     function updateApiUsageInfo() {
-        apiCallCountSpan.textContent = appSettings.apiCallCount;
-
-        const frequency = getRefreshFrequency();
-        if (frequency === 0) {
-            refreshFrequencySpan.textContent = '无限制（开发者模式）';
-        } else {
-            refreshFrequencySpan.textContent = `每${frequency}小时`;
+        if (window.apiCallCountSpan) {
+            window.apiCallCountSpan.textContent = appSettings.apiCallCount;
         }
 
-        if (appSettings.lastApiCallDate) {
-            const date = new Date(appSettings.lastApiCallDate);
-            lastRefreshTimeSpan.textContent = date.toLocaleString();
-        } else {
-            lastRefreshTimeSpan.textContent = '从未刷新';
+        const frequency = getRefreshFrequency();
+        if (window.refreshFrequencySpan) {
+            if (frequency === 0) {
+                window.refreshFrequencySpan.textContent = '无限制（开发者模式）';
+            } else {
+                window.refreshFrequencySpan.textContent = `每${frequency}小时`;
+            }
+        }
+
+        if (window.lastRefreshTimeSpan) {
+            if (appSettings.lastApiCallDate) {
+                const date = new Date(appSettings.lastApiCallDate);
+                window.lastRefreshTimeSpan.textContent = date.toLocaleString();
+            } else {
+                window.lastRefreshTimeSpan.textContent = '从未刷新';
+            }
         }
 
         // 更新开发者模式复选框状态
@@ -168,18 +495,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 更新开发者模式复选框状态
     function updateDeveloperModeCheckbox() {
+        if (!window.apiKeyInput || !window.developerModeCheckbox) return;
+
         // 检查是否使用默认API密钥
-        const isUsingDefaultApiKey = apiKeyInput.value.trim() === 'ca228e734975f64f02e34368';
+        const isUsingDefaultApiKey = window.apiKeyInput.value.trim() === 'ca228e734975f64f02e34368';
 
         // 如果使用默认API密钥，禁用开发者模式复选框
         if (isUsingDefaultApiKey) {
-            developerModeCheckbox.disabled = true;
-            developerModeCheckbox.checked = false;
-            developerModeCheckbox.parentElement.title = '使用默认API密钥时无法启用开发者模式';
+            window.developerModeCheckbox.disabled = true;
+            window.developerModeCheckbox.checked = false;
+            if (window.developerModeCheckbox.parentElement) {
+                window.developerModeCheckbox.parentElement.title = '使用默认API密钥时无法启用开发者模式';
+            }
         } else {
             // 如果使用自己的API密钥，启用开发者模式复选框
-            developerModeCheckbox.disabled = false;
-            developerModeCheckbox.parentElement.title = '';
+            window.developerModeCheckbox.disabled = false;
+            if (window.developerModeCheckbox.parentElement) {
+                window.developerModeCheckbox.parentElement.title = '';
+            }
         }
     }
 
@@ -187,11 +520,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function checkNotificationSupport() {
         if (!('Notification' in window)) {
             console.warn('浏览器不支持通知功能');
-            enableNotificationsCheckbox.disabled = true;
-            enableNotificationsCheckbox.checked = false;
-            notificationSettingsDiv.classList.add('hidden');
-            notificationStatusDiv.textContent = '您的浏览器不支持通知功能';
-            notificationStatusDiv.className = 'notification-status error';
+            if (window.enableNotificationsCheckbox) {
+                window.enableNotificationsCheckbox.disabled = true;
+                window.enableNotificationsCheckbox.checked = false;
+            }
+            if (window.notificationSettingsDiv) {
+                window.notificationSettingsDiv.classList.add('hidden');
+            }
+            if (window.notificationStatusDiv) {
+                window.notificationStatusDiv.textContent = '您的浏览器不支持通知功能';
+                window.notificationStatusDiv.className = 'notification-status error';
+            }
             return false;
         }
         return true;
@@ -204,73 +543,89 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const permission = await Notification.requestPermission();
             if (permission === 'granted') {
-                notificationStatusDiv.textContent = '通知权限已授予';
-                notificationStatusDiv.className = 'notification-status success';
+                if (window.notificationStatusDiv) {
+                    window.notificationStatusDiv.textContent = '通知权限已授予';
+                    window.notificationStatusDiv.className = 'notification-status success';
+                }
                 return true;
             } else {
-                notificationStatusDiv.textContent = '通知权限被拒绝，请在浏览器设置中启用通知';
-                notificationStatusDiv.className = 'notification-status error';
-                enableNotificationsCheckbox.checked = false;
+                if (window.notificationStatusDiv) {
+                    window.notificationStatusDiv.textContent = '通知权限被拒绝，请在浏览器设置中启用通知';
+                    window.notificationStatusDiv.className = 'notification-status error';
+                }
+                if (window.enableNotificationsCheckbox) {
+                    window.enableNotificationsCheckbox.checked = false;
+                }
                 return false;
             }
         } catch (error) {
             console.error('请求通知权限时出错:', error);
-            notificationStatusDiv.textContent = `请求通知权限时出错: ${error.message}`;
-            notificationStatusDiv.className = 'notification-status error';
-            enableNotificationsCheckbox.checked = false;
+            if (window.notificationStatusDiv) {
+                window.notificationStatusDiv.textContent = `请求通知权限时出错: ${error.message}`;
+                window.notificationStatusDiv.className = 'notification-status error';
+            }
+            if (window.enableNotificationsCheckbox) {
+                window.enableNotificationsCheckbox.checked = false;
+            }
             return false;
         }
     }
 
     // 显示通知设置区域
     function toggleNotificationSettings() {
-        if (enableNotificationsCheckbox.checked) {
-            notificationSettingsDiv.classList.remove('hidden');
+        if (!window.enableNotificationsCheckbox || !window.notificationSettingsDiv) return;
+
+        if (window.enableNotificationsCheckbox.checked) {
+            window.notificationSettingsDiv.classList.remove('hidden');
             requestNotificationPermission();
         } else {
-            notificationSettingsDiv.classList.add('hidden');
-            notificationStatusDiv.textContent = '';
-            notificationStatusDiv.className = 'notification-status';
+            window.notificationSettingsDiv.classList.add('hidden');
+            if (window.notificationStatusDiv) {
+                window.notificationStatusDiv.textContent = '';
+                window.notificationStatusDiv.className = 'notification-status';
+            }
         }
     }
 
     // 加载应用设置
     function loadSettings() {
-        const storedSettings = localStorage.getItem(SETTINGS_KEY);
+        const storedSettings = localStorage.getItem(window.SETTINGS_KEY);
         if (storedSettings) {
-            appSettings = JSON.parse(storedSettings);
+            window.appSettings = JSON.parse(storedSettings);
 
             // 确保新添加的字段存在
-            if (appSettings.apiCallCount === undefined) appSettings.apiCallCount = 0;
-            if (appSettings.isDeveloperMode === undefined) appSettings.isDeveloperMode = false;
-            if (appSettings.lastApiCallDate === undefined) appSettings.lastApiCallDate = null;
+            if (window.appSettings.apiCallCount === undefined) window.appSettings.apiCallCount = 0;
+            if (window.appSettings.isDeveloperMode === undefined) window.appSettings.isDeveloperMode = false;
+            if (window.appSettings.lastApiCallDate === undefined) window.appSettings.lastApiCallDate = null;
 
             // 确保通知设置字段存在
-            if (appSettings.enableNotifications === undefined) appSettings.enableNotifications = false;
-            if (appSettings.notificationDays === undefined) appSettings.notificationDays = 7;
-            if (appSettings.notificationDaily === undefined) appSettings.notificationDaily = false;
-            if (appSettings.lastNotificationCheck === undefined) appSettings.lastNotificationCheck = null;
-            if (appSettings.notifiedSubscriptions === undefined) appSettings.notifiedSubscriptions = {};
-            if (appSettings.theme === undefined) appSettings.theme = 'light'; // 新增：确保主题设置存在
+            if (window.appSettings.enableNotifications === undefined) window.appSettings.enableNotifications = false;
+            if (window.appSettings.notificationDays === undefined) window.appSettings.notificationDays = 7;
+            if (window.appSettings.notificationDaily === undefined) window.appSettings.notificationDaily = false;
+            if (window.appSettings.lastNotificationCheck === undefined) window.appSettings.lastNotificationCheck = null;
+            if (window.appSettings.notifiedSubscriptions === undefined) window.appSettings.notifiedSubscriptions = {};
+            if (window.appSettings.theme === undefined) window.appSettings.theme = 'light'; // 新增：确保主题设置存在
         }
 
         // 更新UI以反映设置
-        localCurrencyInput.value = appSettings.localCurrency;
-        apiKeyInput.value = appSettings.apiKey || '';
-        developerModeCheckbox.checked = appSettings.isDeveloperMode;
-        themeSelect.value = appSettings.theme; // 新增：设置主题选择器的值
-        applyTheme(appSettings.theme); // 新增：应用加载的主题
+        if (window.localCurrencyInput) window.localCurrencyInput.value = window.appSettings.localCurrency;
+        if (window.apiKeyInput) window.apiKeyInput.value = window.appSettings.apiKey || '';
+        if (window.developerModeCheckbox) window.developerModeCheckbox.checked = window.appSettings.isDeveloperMode;
+        if (window.themeSelect) window.themeSelect.value = window.appSettings.theme; // 新增：设置主题选择器的值
+        applyTheme(window.appSettings.theme); // 新增：应用加载的主题
 
         // 更新通知设置UI
-        enableNotificationsCheckbox.checked = appSettings.enableNotifications;
-        notificationDaysInput.value = appSettings.notificationDays;
-        notificationDailyCheckbox.checked = appSettings.notificationDaily;
+        if (window.enableNotificationsCheckbox) window.enableNotificationsCheckbox.checked = window.appSettings.enableNotifications;
+        if (window.notificationDaysInput) window.notificationDaysInput.value = window.appSettings.notificationDays;
+        if (window.notificationDailyCheckbox) window.notificationDailyCheckbox.checked = window.appSettings.notificationDaily;
 
         // 根据通知启用状态显示/隐藏设置区域
-        if (appSettings.enableNotifications) {
-            notificationSettingsDiv.classList.remove('hidden');
-        } else {
-            notificationSettingsDiv.classList.add('hidden');
+        if (window.notificationSettingsDiv) {
+            if (window.appSettings.enableNotifications) {
+                window.notificationSettingsDiv.classList.remove('hidden');
+            } else {
+                window.notificationSettingsDiv.classList.add('hidden');
+            }
         }
 
         // 更新API使用情况显示
@@ -285,47 +640,67 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 保存应用设置
     function saveSettings() {
-        appSettings.localCurrency = localCurrencyInput.value.trim().toUpperCase() || 'CNY';
-        appSettings.apiKey = apiKeyInput.value.trim();
+        if (window.localCurrencyInput) {
+            window.appSettings.localCurrency = window.localCurrencyInput.value.trim().toUpperCase() || 'CNY';
+        }
+
+        if (window.apiKeyInput) {
+            window.appSettings.apiKey = window.apiKeyInput.value.trim();
+        }
 
         // 检查是否使用默认API密钥
-        const isUsingDefaultApiKey = appSettings.apiKey === 'ca228e734975f64f02e34368';
+        const isUsingDefaultApiKey = window.appSettings.apiKey === 'ca228e734975f64f02e34368';
 
         // 如果使用默认API密钥，强制禁用开发者模式
         if (isUsingDefaultApiKey) {
-            appSettings.isDeveloperMode = false;
-            developerModeCheckbox.checked = false;
+            window.appSettings.isDeveloperMode = false;
+            if (window.developerModeCheckbox) {
+                window.developerModeCheckbox.checked = false;
+            }
         } else {
             // 如果使用自己的API密钥，允许设置开发者模式
-            appSettings.isDeveloperMode = developerModeCheckbox.checked;
+            if (window.developerModeCheckbox) {
+                window.appSettings.isDeveloperMode = window.developerModeCheckbox.checked;
+            }
         }
 
         // 保存通知设置
-        appSettings.enableNotifications = enableNotificationsCheckbox.checked;
-        appSettings.notificationDays = parseInt(notificationDaysInput.value) || 7;
-        appSettings.notificationDaily = notificationDailyCheckbox.checked;
-        appSettings.theme = themeSelect.value; // 新增：保存主题设置
+        if (window.enableNotificationsCheckbox) {
+            window.appSettings.enableNotifications = window.enableNotificationsCheckbox.checked;
+        }
 
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings));
+        if (window.notificationDaysInput) {
+            window.appSettings.notificationDays = parseInt(window.notificationDaysInput.value) || 7;
+        }
 
-        if (exchangeRatesCache.base !== appSettings.localCurrency || !appSettings.apiKey) {
+        if (window.notificationDailyCheckbox) {
+            window.appSettings.notificationDaily = window.notificationDailyCheckbox.checked;
+        }
+
+        if (window.themeSelect) {
+            window.appSettings.theme = window.themeSelect.value; // 新增：保存主题设置
+        }
+
+        localStorage.setItem(window.SETTINGS_KEY, JSON.stringify(window.appSettings));
+
+        if (window.exchangeRatesCache && window.exchangeRatesCache.base !== window.appSettings.localCurrency || !window.appSettings.apiKey) {
             clearExchangeRatesCache();
         }
 
         // 更新API使用情况显示
         updateApiUsageInfo();
 
-        console.log("Settings saved:", appSettings);
+        console.log("Settings saved:", window.appSettings);
 
         // 如果启用了通知，请求权限
-        if (appSettings.enableNotifications) {
+        if (window.appSettings.enableNotifications) {
             requestNotificationPermission();
         }
     }
 
     // 发送浏览器通知
     function sendNotification(title, options = {}) {
-        if (!appSettings.enableNotifications || !checkNotificationSupport()) {
+        if (!window.appSettings.enableNotifications || !checkNotificationSupport()) {
             return false;
         }
 
@@ -373,19 +748,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 检查订阅到期情况并发送通知
     function checkSubscriptionsAndNotify() {
-        if (!appSettings.enableNotifications || Notification.permission !== 'granted') {
+        if (!window.appSettings.enableNotifications || Notification.permission !== 'granted') {
             return;
         }
 
         // 记录本次检查时间
         const now = new Date();
-        appSettings.lastNotificationCheck = now.toISOString();
+        window.appSettings.lastNotificationCheck = now.toISOString();
 
         // 获取今天的日期（不含时间）
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
         // 检查每个订阅
-        subscriptions.forEach(sub => {
+        window.subscriptions.forEach(sub => {
             if (!sub.expiryDate) return; // 跳过没有到期日期的订阅
 
             const expiryDate = new Date(sub.expiryDate);
@@ -393,18 +768,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const subId = sub.id.toString();
 
             // 检查是否已经通知过这个订阅
-            const lastNotified = appSettings.notifiedSubscriptions[subId]
-                ? new Date(appSettings.notifiedSubscriptions[subId]).getTime()
+            const lastNotified = window.appSettings.notifiedSubscriptions[subId]
+                ? new Date(window.appSettings.notifiedSubscriptions[subId]).getTime()
                 : 0;
 
             // 如果今天已经通知过，则跳过
-            if (lastNotified >= today && !appSettings.notificationDaily) {
+            if (lastNotified >= today && !window.appSettings.notificationDaily) {
                 return;
             }
 
             // 处理已过期的订阅
             if (daysUntilExpiry < 0) {
-                if (appSettings.notificationDaily) {
+                if (window.appSettings.notificationDaily) {
                     sendNotification(
                         `订阅已过期: ${sub.serviceName}`,
                         {
@@ -420,11 +795,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     );
 
                     // 记录通知时间
-                    appSettings.notifiedSubscriptions[subId] = now.toISOString();
+                    window.appSettings.notifiedSubscriptions[subId] = now.toISOString();
                 }
             }
             // 处理即将到期的订阅
-            else if (daysUntilExpiry <= appSettings.notificationDays) {
+            else if (daysUntilExpiry <= window.appSettings.notificationDays) {
                 sendNotification(
                     `订阅即将到期: ${sub.serviceName}`,
                     {
@@ -442,41 +817,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 );
 
                 // 记录通知时间
-                appSettings.notifiedSubscriptions[subId] = now.toISOString();
+                window.appSettings.notifiedSubscriptions[subId] = now.toISOString();
             }
         });
 
         // 保存通知状态
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings));
+        localStorage.setItem(window.SETTINGS_KEY, JSON.stringify(window.appSettings));
     }
 
-    // 设置面板显示/隐藏
-    settingsToggle.addEventListener('click', function() {
-        settingsPanel.classList.toggle('hidden');
-    });
-
-    // 监听API密钥输入框变化
-    apiKeyInput.addEventListener('input', function() {
-        updateDeveloperModeCheckbox();
-    });
-
-    // 保存设置
-    saveSettingsButton.addEventListener('click', function() {
-        saveSettings();
-        settingsPanel.classList.add('hidden');
-        renderSubscriptions();
-
-        // 如果启用了通知，立即检查订阅
-        if (appSettings.enableNotifications && Notification.permission === 'granted') {
-            checkSubscriptionsAndNotify();
-        }
-    });
-
     // 刷新汇率数据
-    refreshRatesButton.addEventListener('click', async function() {
+    async function refreshRates() {
         if (!appSettings.apiKey) {
-            ratesStatusDiv.textContent = '请先设置API Key';
-            ratesStatusDiv.className = 'rates-status error';
+            if (ratesStatusDiv) {
+                ratesStatusDiv.textContent = '请先设置API Key';
+                ratesStatusDiv.className = 'rates-status error';
+            }
             return;
         }
 
@@ -488,46 +843,342 @@ document.addEventListener('DOMContentLoaded', () => {
         // 如果不是开发者模式，且缓存未过期，则限制刷新频率
         if (!appSettings.isDeveloperMode && cacheAge < refreshFrequency) {
             const remainingHours = (refreshFrequency - cacheAge).toFixed(1);
-            ratesStatusDiv.textContent = `刷新频率限制：请在 ${remainingHours} 小时后再试`;
-            ratesStatusDiv.className = 'rates-status error';
+            if (ratesStatusDiv) {
+                ratesStatusDiv.textContent = `刷新频率限制：请在 ${remainingHours} 小时后再试`;
+                ratesStatusDiv.className = 'rates-status error';
+            }
             return;
         }
 
-        ratesStatusDiv.textContent = '正在获取最新汇率数据...';
-        ratesStatusDiv.className = 'rates-status';
+        if (ratesStatusDiv) {
+            ratesStatusDiv.textContent = '正在获取最新汇率数据...';
+            ratesStatusDiv.className = 'rates-status';
+        }
 
         try {
             // 强制更新汇率数据
             const rates = await fetchExchangeRates(true);
 
-            if (rates) {
+            if (rates && ratesStatusDiv) {
                 ratesStatusDiv.textContent = `汇率数据已更新（${new Date().toLocaleString()}）`;
                 ratesStatusDiv.className = 'rates-status success';
 
                 // 重新渲染订阅列表，使用新的汇率数据
                 renderSubscriptions();
-            } else {
+            } else if (ratesStatusDiv) {
                 ratesStatusDiv.textContent = '获取汇率数据失败，请检查API Key和网络连接';
                 ratesStatusDiv.className = 'rates-status error';
             }
         } catch (error) {
             console.error('刷新汇率时发生错误:', error);
-            ratesStatusDiv.textContent = `获取汇率时发生错误: ${error.message}`;
-            ratesStatusDiv.className = 'rates-status error';
+            if (ratesStatusDiv) {
+                ratesStatusDiv.textContent = `获取汇率时发生错误: ${error.message}`;
+                ratesStatusDiv.className = 'rates-status error';
+            }
         }
-    });
+    }
 
-    // 当币种输入变化时，更新标签
-    // currencyInput.addEventListener('input', updateCurrencyLabels);
+    // 测试通知功能
+    function testNotification() {
+        if (!checkNotificationSupport()) {
+            if (notificationStatusDiv) {
+                notificationStatusDiv.textContent = '浏览器不支持通知功能';
+                notificationStatusDiv.className = 'notification-status error';
+            }
+            return;
+        }
 
-    // 关闭提醒面板
-    closeNotificationButton.addEventListener('click', function() {
-        notificationPanel.classList.add('hidden');
+        if (Notification.permission !== 'granted') {
+            requestNotificationPermission().then(granted => {
+                if (granted) {
+                    sendTestNotification();
+                }
+            });
+        } else {
+            sendTestNotification();
+        }
+    }
 
-        appSettings.notificationDismissed = true;
-        appSettings.lastNotificationDate = new Date().toISOString().split('T')[0];
+    // 发送测试通知
+    function sendTestNotification() {
+        const success = sendNotification(
+            '测试通知',
+            {
+                body: '这是一条测试通知，表明通知功能正常工作。',
+                requireInteraction: true
+            }
+        );
+
+        if (success && notificationStatusDiv) {
+            notificationStatusDiv.textContent = '测试通知已发送';
+            notificationStatusDiv.className = 'notification-status success';
+        } else if (notificationStatusDiv) {
+            notificationStatusDiv.textContent = '发送测试通知失败';
+            notificationStatusDiv.className = 'notification-status error';
+        }
+    }
+
+    // 显示预设服务模态框
+    function showPresetModal() {
+        if (presetServiceModal) {
+            presetServiceModal.classList.remove('hidden');
+            renderPresetServices();
+        }
+    }
+
+    // 隐藏预设服务模态框
+    function hidePresetModal() {
+        if (presetServiceModal) {
+            presetServiceModal.classList.add('hidden');
+        }
+    }
+
+    // 过滤预设服务
+    function filterPresetServices() {
+        if (!searchPresetServiceInput || !presetServiceListDiv) return;
+
+        const searchTerm = searchPresetServiceInput.value.toLowerCase();
+        renderPresetServices(searchTerm);
+    }
+
+    // 渲染预设服务列表
+    function renderPresetServices(searchTerm = '') {
+        if (!presetServiceListDiv) return;
+
+        presetServiceListDiv.innerHTML = '';
+
+        const filteredServices = searchTerm
+            ? presetServices.filter(service =>
+                service.name.toLowerCase().includes(searchTerm) ||
+                service.category.toLowerCase().includes(searchTerm))
+            : presetServices;
+
+        if (filteredServices.length === 0) {
+            presetServiceListDiv.innerHTML = '<p class="text-center text-gray-500 my-4">没有找到匹配的服务</p>';
+            return;
+        }
+
+        filteredServices.forEach(service => {
+            const serviceItem = document.createElement('div');
+            serviceItem.className = 'preset-service-item';
+            serviceItem.innerHTML = `
+                <img src="${service.defaultIconUrl}" alt="${service.name}" class="preset-service-icon">
+                <div class="preset-service-info">
+                    <h3>${service.name}</h3>
+                    <span class="preset-service-category">${getCategoryName(service.category)}</span>
+                </div>
+            `;
+
+            serviceItem.addEventListener('click', () => {
+                selectPresetService(service);
+            });
+
+            presetServiceListDiv.appendChild(serviceItem);
+        });
+    }
+
+    // 选择预设服务
+    function selectPresetService(service) {
+        // 获取表单元素
+        const serviceNameInput = document.getElementById('service-name');
+        const serviceUrlInput = document.getElementById('service-url');
+        const serviceIconInput = document.getElementById('service-icon');
+
+        if (!serviceNameInput || !serviceUrlInput || !categorySelect) {
+            console.warn('无法找到表单元素，无法选择预设服务');
+            return;
+        }
+
+        serviceNameInput.value = service.name;
+        serviceUrlInput.value = service.defaultUrl;
+        categorySelect.value = service.category;
+
+        // 如果有图标，也设置图标
+        if (service.defaultIconUrl && serviceIconInput) {
+            serviceIconInput.value = service.defaultIconUrl;
+        }
+
+        hidePresetModal();
+    }
+
+    // 获取默认服务图标
+    function getDefaultServiceIcon(serviceName, serviceUrl) {
+        // 首先检查是否有匹配的预设服务
+        const presetService = presetServices.find(service =>
+            service.name.toLowerCase() === serviceName.toLowerCase());
+
+        if (presetService && presetService.defaultIconUrl) {
+            return presetService.defaultIconUrl;
+        }
+
+        // 如果没有匹配的预设服务，但有URL，则使用Google Favicon服务
+        if (serviceUrl) {
+            try {
+                const url = new URL(serviceUrl);
+                return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=64`;
+            } catch (e) {
+                console.warn('无效的URL，无法获取图标:', serviceUrl);
+            }
+        }
+
+        // 如果都没有，返回默认图标
+        return 'https://www.google.com/s2/favicons?domain=subscription-manager.com&sz=64';
+    }
+
+    // 根据ID获取订阅
+    function getSubscriptionById(id) {
+        return subscriptions.find(sub => sub.id === id) || null;
+    }
+
+    // 获取分类名称
+    function getCategoryName(categoryId) {
+        const categories = {
+            'entertainment': '娱乐',
+            'work': '工作',
+            'utility': '实用工具',
+            'education': '教育',
+            'lifestyle': '生活方式',
+            'news': '新闻',
+            'social': '社交',
+            'gaming': '游戏',
+            'other': '其他'
+        };
+
+        return categories[categoryId] || categoryId;
+    }
+
+    // 处理订阅表单提交
+    function handleSubscriptionFormSubmit(event) {
+        event.preventDefault();
+
+        if (!subscriptionForm) return;
+
+        // 获取表单数据
+        const formData = new FormData(subscriptionForm);
+        const serviceName = formData.get('service-name');
+        const serviceUrl = formData.get('service-url');
+        const serviceIconInput = document.getElementById('service-icon');
+        const serviceIcon = serviceIconInput ? serviceIconInput.value : '';
+
+        const subscriptionData = {
+            id: editingId || Date.now().toString(),
+            serviceName: serviceName,
+            serviceUrl: serviceUrl,
+            serviceIcon: serviceIcon || getDefaultServiceIcon(serviceName, serviceUrl),
+            price: parseFloat(formData.get('price')),
+            currency: formData.get('currency'),
+            billingCycle: formData.get('billing-cycle'),
+            category: formData.get('category'),
+            startDate: formData.get('start-date'),
+            expiryDate: formData.get('expiry-date'),
+            autoRenew: formData.get('auto-renew') === 'on',
+            paymentAccount: formData.get('payment-account'),
+            priceHistoryNotes: formData.get('price-history-notes'),
+            notes: formData.get('notes'),
+            createdAt: editingId ? getSubscriptionById(editingId).createdAt : new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+
+        // 验证必填字段
+        if (!subscriptionData.serviceName || !subscriptionData.price || isNaN(subscriptionData.price)) {
+            alert('请填写服务名称和有效的价格');
+            return;
+        }
+
+        // 如果是编辑模式，更新现有订阅
+        if (editingId) {
+            const index = subscriptions.findIndex(sub => sub.id === editingId);
+            if (index !== -1) {
+                subscriptions[index] = subscriptionData;
+            }
+            editingId = null;
+        } else {
+            // 否则添加新订阅
+            subscriptions.push(subscriptionData);
+        }
+
+        // 保存订阅数据
+        saveSubscriptions();
+
+        // 重置表单
+        subscriptionForm.reset();
+
+        // 更新自动计算复选框状态
+        if (autoCalculateCheck) {
+            autoCalculateCheck.checked = true;
+        }
+
+        // 重新渲染订阅列表
+        renderSubscriptions();
+
+        // 更新统计数据
+        updateStatistics();
+
+        // 显示成功消息
+        alert(editingId ? '订阅已更新' : '订阅已添加');
+    }
+
+    // 更新汇率信息
+    function updateExchangeRateInfo() {
+        // 这里可以添加更新汇率信息的代码
+    }
+
+    // 更新统计数据
+    function updateStatistics() {
+        // 这里可以添加更新统计数据的代码
+    }
+
+    // 更新分类图表
+    function updateCategoryChart() {
+        // 这里可以添加更新分类图表的代码
+    }
+
+    // 更新趋势图表
+    function updateTrendChart() {
+        // 这里可以添加更新趋势图表的代码
+    }
+
+    // 更新价值分析图表
+    function updateValueAnalysisChart() {
+        // 这里可以添加更新价值分析图表的代码
+    }
+
+    // 导出数据为JSON
+    function exportDataAsJson() {
+        // 这里可以添加导出数据为JSON的代码
+    }
+
+    // 导出数据为CSV
+    function exportDataAsCsv() {
+        // 这里可以添加导出数据为CSV的代码
+    }
+
+    // 处理文件选择
+    function handleFileSelect() {
+        // 这里可以添加处理文件选择的代码
+    }
+
+    // 导入数据
+    function importData() {
+        // 这里可以添加导入数据的代码
+    }
+
+    // 应用主题
+    function applyTheme(theme) {
+        const body = document.body;
+
+        // 移除所有主题相关的类
+        body.classList.remove('theme-light', 'theme-dark', 'theme-auto');
+
+        // 添加新的主题类
+        body.classList.add(`theme-${theme}`);
+
+        // 保存主题设置
+        appSettings.theme = theme;
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings));
-    });
+
+        console.log(`已应用主题: ${theme}`);
+    }
 
     // 当订阅周期改变或首次订阅日期改变时，自动计算到期日期
     function updateExpiryDate() {
@@ -597,21 +1248,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 添加事件监听器，自动计算到期日期
-    billingCycleSelect.addEventListener('change', updateExpiryDate);
-    startDateInput.addEventListener('change', updateExpiryDate);
-    autoCalculateCheck.addEventListener('change', function() {
-        if (this.checked) {
-            updateExpiryDate();
-        }
-    });
+    // 这些事件监听器会在DOM元素初始化后添加
+    // 在initializeSubscriptionsView函数中已经添加了这些事件监听器
 
-    let subscriptions = [];
-    const STORAGE_KEY = 'subscriptionsData';
-    let editingId = null;
+    // 这些变量已经在上面声明过了，不需要重复声明
 
     // --- Exchange Rate Functions ---
     function clearExchangeRatesCache() {
-        exchangeRatesCache = { timestamp: null, base: '', rates: {} };
+        window.exchangeRatesCache = { timestamp: null, base: '', rates: {} };
         localStorage.removeItem(EXCHANGE_RATES_KEY);
         console.log("Exchange rates cache cleared.");
     }
@@ -619,14 +1263,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function loadExchangeRatesCache() {
         const storedRates = localStorage.getItem(EXCHANGE_RATES_KEY);
         if (storedRates) {
-            exchangeRatesCache = JSON.parse(storedRates);
-            console.log("Loaded exchange rates from cache:", exchangeRatesCache);
+            window.exchangeRatesCache = JSON.parse(storedRates);
+            console.log("Loaded exchange rates from cache:", window.exchangeRatesCache);
         }
     }
 
     function saveExchangeRatesCache() {
-        localStorage.setItem(EXCHANGE_RATES_KEY, JSON.stringify(exchangeRatesCache));
-        console.log("Saved exchange rates to cache:", exchangeRatesCache);
+        localStorage.setItem(EXCHANGE_RATES_KEY, JSON.stringify(window.exchangeRatesCache));
+        console.log("Saved exchange rates to cache:", window.exchangeRatesCache);
     }
 
     async function fetchExchangeRates(forceUpdate = false) {
@@ -644,7 +1288,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 计算缓存年龄（小时）
         const now = new Date().getTime();
-        const cacheAge = exchangeRatesCache.timestamp ? (now - exchangeRatesCache.timestamp) / (1000 * 60 * 60) : Infinity;
+        const cacheAge = window.exchangeRatesCache.timestamp ? (now - window.exchangeRatesCache.timestamp) / (1000 * 60 * 60) : Infinity;
 
         // 获取当前用户的刷新频率
         const refreshFrequency = getRefreshFrequency();
@@ -652,13 +1296,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // 如果是开发者模式且强制更新，或者缓存已过期，则获取新数据
         // 否则使用缓存数据
         if (!forceUpdate &&
-            exchangeRatesCache.rates &&
-            Object.keys(exchangeRatesCache.rates).length > 0 &&
+            window.exchangeRatesCache.rates &&
+            Object.keys(window.exchangeRatesCache.rates).length > 0 &&
             (refreshFrequency === 0 ? true : cacheAge < refreshFrequency)) {
 
             console.log("使用缓存的汇率数据（缓存年龄：" + cacheAge.toFixed(2) + "小时，刷新频率：" +
                         (refreshFrequency === 0 ? "无限制" : refreshFrequency + "小时") + "）");
-            return exchangeRatesCache.rates;
+            return window.exchangeRatesCache.rates;
         }
 
         // 获取新的汇率数据
@@ -686,7 +1330,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 检查API返回结果
             if (data.result === "success") {
                 // 更新缓存
-                exchangeRatesCache = {
+                window.exchangeRatesCache = {
                     timestamp: now,
                     base: data.base_code,
                     rates: data.conversion_rates
@@ -708,9 +1352,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.warn(`注意：API返回的基准货币(${data.base_code})与请求的(${appSettings.localCurrency})不同。这是exchangerate-api.com免费版的限制，汇率将通过USD进行换算。`);
                 }
 
-                console.log("成功获取并缓存新的汇率数据:", exchangeRatesCache);
+                console.log("成功获取并缓存新的汇率数据:", window.exchangeRatesCache);
                 console.log(`API调用计数：${appSettings.apiCallCount}，刷新频率：${getRefreshFrequency()}小时`);
-                return exchangeRatesCache.rates;
+                return window.exchangeRatesCache.rates;
             } else {
                 // API返回错误
                 console.error("API返回错误:", data['error-type']);
@@ -746,7 +1390,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // 获取基准货币
-        const baseCurrency = exchangeRatesCache.base;
+        const baseCurrency = window.exchangeRatesCache.base;
         console.log(`汇率基准货币: ${baseCurrency}`);
 
         // 如果基准货币是目标货币（例如：基准是CNY，目标也是CNY）
@@ -791,66 +1435,92 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Data Functions ---
     function saveSubscriptions() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions));
+        localStorage.setItem(window.STORAGE_KEY, JSON.stringify(window.subscriptions));
     }
 
     function loadSubscriptions() {
-        const storedSubscriptions = localStorage.getItem(STORAGE_KEY);
+        // 确保 window.subscriptions 总是一个数组，即使 localStorage 为空或数据无效
+        window.subscriptions = [];
+
+        const storedSubscriptions = localStorage.getItem(window.STORAGE_KEY);
         if (storedSubscriptions) {
-            subscriptions = JSON.parse(storedSubscriptions);
+            try {
+                const parsedSubscriptions = JSON.parse(storedSubscriptions);
+                // 确保解析出来的是数组
+                if (Array.isArray(parsedSubscriptions)) {
+                    window.subscriptions = parsedSubscriptions;
 
-            subscriptions = subscriptions.map(sub => {
-                if (sub.startDate && sub.billingCycle !== 'one-time' && !sub.expiryDate) {
-                    sub.expiryDate = calculateExpiryDate(sub.startDate, sub.billingCycle);
-                }
-                return sub;
-            });
-
-            // 为没有图标的订阅异步获取图标
-            (async () => {
-                let hasUpdates = false;
-
-                for (const sub of subscriptions) {
-                    if (!sub.serviceIcon) {
-                        try {
-                            const icon = await getServiceIcon(sub);
-                            if (icon) {
-                                sub.serviceIcon = icon;
-                                hasUpdates = true;
-                            }
-                        } catch (error) {
-                            console.error(`为订阅 ${sub.serviceName} 获取图标时出错:`, error);
+                    window.subscriptions = window.subscriptions.map(sub => {
+                        if (sub.startDate && sub.billingCycle !== 'one-time' && !sub.expiryDate) {
+                            sub.expiryDate = calculateExpiryDate(sub.startDate, sub.billingCycle);
                         }
-                    }
-                }
+                        return sub;
+                    });
 
-                if (hasUpdates) {
-                    saveSubscriptions();
-                    renderSubscriptions();
-                }
-            })();
+                    // 为没有图标的订阅异步获取图标
+                    (async () => {
+                        let hasUpdates = false;
+                        for (const sub of window.subscriptions) {
+                            if (!sub.serviceIcon) {
+                                try {
+                                    const icon = await getServiceIcon(sub);
+                                    if (icon) {
+                                        sub.serviceIcon = icon;
+                                        hasUpdates = true;
+                                    }
+                                } catch (error) {
+                                    console.error(`为订阅 ${sub.serviceName} 获取图标时出错:`, error);
+                                }
+                            }
+                        }
 
-            saveSubscriptions();
+                        if (hasUpdates) {
+                            saveSubscriptions(); // 保存带有新图标的订阅
+                            // 考虑优化：仅当当前视图为订阅视图时才调用 renderSubscriptions
+                            renderSubscriptions();
+                        }
+                    })();
+                    // 在所有潜在修改后（map同步修改，async异步获取图标修改）保存一次。
+                    // 注意：如果 async 操作耗时较长，这里的 saveSubscriptions 可能在图标获取完成前执行。
+                    // 一个更健壮的模式是等待 async 操作完成后再统一保存。
+                    // 但为了保持现有逻辑，暂时将 saveSubscriptions 移到最后。
+                } else {
+                    console.warn("localStorage 中的 'subscriptionsData' 不是一个有效的数组，已重置为空数组。");
+                    // window.subscriptions 已经是 [] 了
+                }
+            } catch (e) {
+                console.error("从 localStorage 解析订阅数据失败，已重置为空数组:", e);
+                // window.subscriptions 已经是 [] 了
+            }
         }
+        // 确保最终状态被保存，即使是从空localStorage开始或解析失败。
+        saveSubscriptions();
     }
 
     // --- Rendering Functions ---
     function renderSubscriptions(category = 'all') {
-        subscriptionListDiv.innerHTML = '';
+        if (!window.subscriptionListDiv) return;
 
-        if (subscriptions.length === 0) {
+        window.subscriptionListDiv.innerHTML = '';
+
+        if (window.subscriptions.length === 0) {
             const placeholder = document.createElement('p');
             placeholder.textContent = '还没有添加任何订阅。';
             placeholder.style.fontStyle = 'italic';
             placeholder.style.color = '#777';
-            subscriptionListDiv.appendChild(placeholder);
+            window.subscriptionListDiv.appendChild(placeholder);
 
-            notificationPanel.classList.add('hidden');
+            if (window.notificationPanel) {
+                window.notificationPanel.classList.add('hidden');
+            }
             return;
         }
 
+        // 移除所有滑动相关的事件监听器
+        removeAllSwipeListeners();
+
         // 按分类筛选
-        let filteredSubscriptions = subscriptions;
+        let filteredSubscriptions = window.subscriptions;
         if (category !== 'all') {
             filteredSubscriptions = filterSubscriptionsByCategory(category);
 
@@ -859,7 +1529,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 placeholder.textContent = `没有找到分类为"${getCategoryName(category)}"的订阅。`;
                 placeholder.style.fontStyle = 'italic';
                 placeholder.style.color = '#777';
-                subscriptionListDiv.appendChild(placeholder);
+                window.subscriptionListDiv.appendChild(placeholder);
                 return;
             }
         }
@@ -882,16 +1552,20 @@ document.addEventListener('DOMContentLoaded', () => {
         let expiringSoonItems = [];
 
         fetchExchangeRates().then(rates => {
-            if (sortedSubscriptions.length === 0 && subscriptionListDiv.querySelector('p')) {
+            if (!window.subscriptionListDiv) return;
+
+            if (sortedSubscriptions.length === 0 && window.subscriptionListDiv.querySelector('p')) {
             } else {
-                subscriptionListDiv.innerHTML = '';
+                window.subscriptionListDiv.innerHTML = '';
                 if (sortedSubscriptions.length === 0) {
                     const placeholder = document.createElement('p');
                     placeholder.textContent = '还没有添加任何订阅。';
                     placeholder.style.fontStyle = 'italic';
                     placeholder.style.color = '#777';
-                    subscriptionListDiv.appendChild(placeholder);
-                    notificationPanel.classList.add('hidden');
+                    window.subscriptionListDiv.appendChild(placeholder);
+                    if (window.notificationPanel) {
+                        window.notificationPanel.classList.add('hidden');
+                    }
                     return;
                 }
             }
@@ -943,11 +1617,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const price = parseFloat(sub.price);
                 const currency = sub.currency.toUpperCase();
                 // 添加调试日志，跟踪汇率换算过程
-                console.log(`Converting price: ${price} ${currency} to ${appSettings.localCurrency}`, rates);
-                const localPrice = getConvertedPrice(price, currency, rates, appSettings.localCurrency);
-                console.log(`Conversion result: ${price} ${currency} = ${localPrice} ${appSettings.localCurrency}`);
+                console.log(`Converting price: ${price} ${currency} to ${window.appSettings.localCurrency}`, rates);
+                const localPrice = getConvertedPrice(price, currency, rates, window.appSettings.localCurrency);
+                console.log(`Conversion result: ${price} ${currency} = ${localPrice} ${window.appSettings.localCurrency}`);
 
-                const localPriceHTML = localPrice ? `<p><strong>价格:</strong> ${price} ${currency} <span class="local-price">(约 ${localPrice} ${appSettings.localCurrency})</span></p>` : `<p><strong>价格:</strong> ${price} ${currency}</p>`;
+                const localPriceHTML = localPrice ? `<p><strong>价格:</strong> ${price} ${currency} <span class="local-price">(约 ${localPrice} ${window.appSettings.localCurrency})</span></p>` : `<p><strong>价格:</strong> ${price} ${currency}</p>`;
 
                 htmlContent += localPriceHTML;
 
@@ -985,8 +1659,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="edit-btn">编辑</button>
                         <button class="delete-btn">删除</button>
                     </div>`;
+                // 添加滑动删除确认按钮
+                const deleteConfirmBtn = document.createElement('div');
+                deleteConfirmBtn.className = 'swipe-delete-confirm';
+                deleteConfirmBtn.innerHTML = '删除 <i class="fas fa-trash"></i>';
+                deleteConfirmBtn.setAttribute('data-id', sub.id);
+
                 newItemDiv.innerHTML = htmlContent;
-                subscriptionListDiv.appendChild(newItemDiv);
+                newItemDiv.appendChild(deleteConfirmBtn);
+                window.subscriptionListDiv.appendChild(newItemDiv);
+
+                // 为每个订阅项添加滑动事件
+                addSwipeListeners(newItemDiv);
             });
 
             updateNotificationPanel(overdueItems, expiringSoonItems);
@@ -1004,18 +1688,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 更新提醒面板
     function updateNotificationPanel(overdueItems, expiringSoonItems) {
+        if (!window.notificationPanel || !window.notificationContent) return;
+
         if (overdueItems.length === 0 && expiringSoonItems.length === 0) {
-            notificationPanel.classList.add('hidden');
+            window.notificationPanel.classList.add('hidden');
             return;
         }
 
         const today = new Date().toISOString().split('T')[0];
-        if (appSettings.notificationDismissed && appSettings.lastNotificationDate === today) {
-            notificationPanel.classList.add('hidden');
+        if (window.appSettings.notificationDismissed && window.appSettings.lastNotificationDate === today) {
+            window.notificationPanel.classList.add('hidden');
             return;
         }
 
-        appSettings.notificationDismissed = false;
+        window.appSettings.notificationDismissed = false;
 
         let notificationHtml = '';
 
@@ -1064,12 +1750,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        notificationContent.innerHTML = notificationHtml;
-        notificationPanel.classList.remove('hidden');
+        window.notificationContent.innerHTML = notificationHtml;
+        window.notificationPanel.classList.remove('hidden');
     }
 
     // --- Event Handlers ---
-    subscriptionForm.addEventListener('submit', function(event) {
+    // 这些事件处理程序会在DOM元素初始化后添加
+    // 在initializeSubscriptionsView函数中已经添加了这些事件处理程序
+    function handleSubscriptionFormSubmit(event) {
         event.preventDefault();
 
         const serviceName = document.getElementById('service-name').value;
@@ -1082,28 +1770,28 @@ document.addEventListener('DOMContentLoaded', () => {
         let expiryDate = document.getElementById('expiry-date').value;
         const notes = document.getElementById('notes').value.trim();
         const autoCalculate = document.getElementById('auto-calculate').checked;
-        const paymentAccount = paymentAccountInput.value.trim(); // 新增：获取支付账户信息
-        const priceHistoryNotes = priceHistoryNotesInput.value.trim(); // 新增：获取价格历史信息
+        const paymentAccount = window.paymentAccountInput ? window.paymentAccountInput.value.trim() : ''; // 新增：获取支付账户信息
+        const priceHistoryNotes = window.priceHistoryNotesInput ? window.priceHistoryNotesInput.value.trim() : ''; // 新增：获取价格历史信息
 
-        if (!serviceName || !price || !currency) {
-            alert('请填写所有必填项（服务名称、价格、币种）。');
-            return;
-        }
+            if (!serviceName || !price || !currency) {
+                alert('请填写所有必填项（服务名称、价格、币种）。');
+                return;
+            }
 
-        if (autoCalculate && billingCycle !== 'one-time' && startDate) {
-            expiryDate = calculateExpiryDate(startDate, billingCycle);
-        } else if (billingCycle === 'one-time') {
-            expiryDate = '';
-        }
+            if (autoCalculate && billingCycle !== 'one-time' && startDate) {
+                expiryDate = calculateExpiryDate(startDate, billingCycle);
+            } else if (billingCycle === 'one-time') {
+                expiryDate = '';
+            }
 
         // 先保存订阅，然后异步获取图标
         let serviceIcon = null;
 
-        if (editingId !== null) {
-            const index = subscriptions.findIndex(sub => sub.id === editingId);
-            if (index !== -1) {
-                subscriptions[index] = {
-                    ...subscriptions[index],
+            if (window.editingId !== null) {
+                const index = window.subscriptions.findIndex(sub => sub.id === window.editingId);
+                if (index !== -1) {
+                    window.subscriptions[index] = {
+                        ...window.subscriptions[index],
                     serviceName,
                     serviceUrl,
                     price,
@@ -1117,13 +1805,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     serviceIcon,
                     paymentAccount, // 新增：保存支付账户
                     priceHistoryNotes // 新增：保存价格历史
-                };
-            }
-            editingId = null;
-            submitButton.textContent = '添加订阅';
-        } else {
-            const newSubscription = {
-                id: Date.now(),
+                    };
+                }
+                window.editingId = null;
+                if (window.submitButton) {
+                    window.submitButton.textContent = '添加订阅';
+                }
+            } else {
+                const newSubscription = {
+                    id: Date.now(),
                 serviceName,
                 serviceUrl,
                 price,
@@ -1137,46 +1827,55 @@ document.addEventListener('DOMContentLoaded', () => {
                 serviceIcon,
                 paymentAccount, // 新增：保存支付账户
                 priceHistoryNotes // 新增：保存价格历史
-            };
-            subscriptions.push(newSubscription);
-        }
+                };
+                window.subscriptions.push(newSubscription);
+            }
 
-        saveSubscriptions();
+            saveSubscriptions();
 
         // 异步获取并更新图标
-        (async () => {
-            try {
+            (async () => {
+                try {
                 // 找到刚刚添加/编辑的订阅
-                const subscription = subscriptions.find(sub =>
-                    editingId === null ? sub.id === subscriptions[subscriptions.length - 1].id : sub.id === editingId
+                const subscription = window.subscriptions.find(sub =>
+                    window.editingId === null ? sub.id === window.subscriptions[window.subscriptions.length - 1].id : sub.id === window.editingId
                 );
 
-                if (subscription) {
+                    if (subscription) {
                     // 获取图标
-                    const icon = await getServiceIcon(subscription);
+                        const icon = await getServiceIcon(subscription);
 
                     // 更新订阅的图标
-                    if (icon) {
-                        subscription.serviceIcon = icon;
-                        saveSubscriptions();
-                        renderSubscriptions();
+                        if (icon) {
+                            subscription.serviceIcon = icon;
+                            saveSubscriptions();
+                            renderSubscriptions();
                         updateStatistics(); // 更新统计信息
+                        }
                     }
+                } catch (error) {
+                    console.error("获取服务图标时出错:", error);
                 }
-            } catch (error) {
-                console.error("获取服务图标时出错:", error);
+            })();
+
+            renderSubscriptions();
+            updateStatistics(); // 更新统计信息
+            if (window.subscriptionForm) {
+                window.subscriptionForm.reset();
             }
-        })();
+            if (window.paymentAccountInput) {
+                window.paymentAccountInput.value = ''; // 新增：重置支付账户输入框
+            }
+            if (window.priceHistoryNotesInput) {
+                window.priceHistoryNotesInput.value = ''; // 新增：重置价格历史输入框
+            }
+            if (window.autoCalculateCheck) {
+                window.autoCalculateCheck.checked = true;
+            }
+        }
 
-        renderSubscriptions();
-        updateStatistics(); // 更新统计信息
-        subscriptionForm.reset();
-        paymentAccountInput.value = ''; // 新增：重置支付账户输入框
-        priceHistoryNotesInput.value = ''; // 新增：重置价格历史输入框
-        autoCalculateCheck.checked = true;
-    });
-
-    subscriptionListDiv.addEventListener('click', function(event) {
+    // 订阅列表点击事件处理
+    function handleSubscriptionListClick(event) {
         const target = event.target;
         const subscriptionItem = target.closest('.subscription-item');
         if (!subscriptionItem) return;
@@ -1188,23 +1887,29 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (target.classList.contains('edit-btn')) {
             populateFormForEdit(subscriptionId);
         }
-    });
+    }
 
     function deleteSubscription(id) {
-        subscriptions = subscriptions.filter(sub => sub.id !== id);
+        window.subscriptions = window.subscriptions.filter(sub => sub.id !== id);
         saveSubscriptions();
         renderSubscriptions();
         updateStatistics(); // 更新统计信息
-        if (editingId === id) {
-            editingId = null;
-            submitButton.textContent = '添加订阅';
-            subscriptionForm.reset();
-            autoCalculateCheck.checked = true;
+        if (window.editingId === id) {
+            window.editingId = null;
+            if (window.submitButton) {
+                window.submitButton.textContent = '添加订阅';
+            }
+            if (window.subscriptionForm) {
+                window.subscriptionForm.reset();
+            }
+            if (window.autoCalculateCheck) {
+                window.autoCalculateCheck.checked = true;
+            }
         }
     }
 
     function populateFormForEdit(id) {
-        const sub = subscriptions.find(s => s.id === id);
+        const sub = window.subscriptions.find(s => s.id === id);
         if (sub) {
             document.getElementById('service-name').value = sub.serviceName;
             document.getElementById('service-url').value = sub.serviceUrl || '';
@@ -1216,13 +1921,146 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('expiry-date').value = sub.expiryDate || '';
             document.getElementById('notes').value = sub.notes || '';
             document.getElementById('auto-calculate').checked = sub.autoCalculate !== undefined ? sub.autoCalculate : true;
-            paymentAccountInput.value = sub.paymentAccount || ''; // 新增：填充支付账户信息
-            priceHistoryNotesInput.value = sub.priceHistoryNotes || ''; // 新增：填充价格历史信息
+            if (window.paymentAccountInput) window.paymentAccountInput.value = sub.paymentAccount || ''; // 新增：填充支付账户信息
+            if (window.priceHistoryNotesInput) window.priceHistoryNotesInput.value = sub.priceHistoryNotes || ''; // 新增：填充价格历史信息
 
-            editingId = id;
-            submitButton.textContent = '更新订阅';
+            window.editingId = id;
+            if (window.submitButton) window.submitButton.textContent = '更新订阅';
             window.scrollTo(0, 0);
         }
+    }
+
+    // --- 滑动删除功能 ---
+    let swipeListeners = [];
+
+    // 添加滑动事件监听器
+    function addSwipeListeners(element) {
+        if (!element) return;
+
+        let startX = 0;
+        let currentX = 0;
+        let isDragging = false;
+        let longPressTimer = null;
+        const SWIPE_THRESHOLD = 80; // 滑动阈值，超过这个值会触发删除确认
+        const LONG_PRESS_DURATION = 500; // 长按时间阈值（毫秒）
+
+        // 触摸开始事件
+        const touchStartHandler = function(e) {
+            startX = e.touches[0].clientX;
+            isDragging = true;
+            element.classList.add('swiping');
+
+            // 设置长按定时器
+            longPressTimer = setTimeout(() => {
+                // 长按触发编辑功能
+                const id = Number(element.getAttribute('data-id'));
+                populateFormForEdit(id);
+
+                // 添加视觉反馈
+                element.classList.add('long-press-active');
+                setTimeout(() => {
+                    element.classList.remove('long-press-active');
+                }, 200);
+
+                // 清除定时器
+                longPressTimer = null;
+            }, LONG_PRESS_DURATION);
+
+            e.preventDefault();
+        };
+
+        // 触摸移动事件
+        const touchMoveHandler = function(e) {
+            // 如果移动了，取消长按定时器
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+            if (!isDragging) return;
+
+            currentX = e.touches[0].clientX;
+            const diffX = currentX - startX;
+
+            // 只允许向左滑动（负值）
+            if (diffX < 0 && Math.abs(diffX) > 10) {
+                // 限制最大滑动距离
+                const moveX = Math.max(diffX, -SWIPE_THRESHOLD);
+
+                // 如果滑动距离超过阈值，添加删除状态类
+                if (Math.abs(moveX) >= SWIPE_THRESHOLD) {
+                    element.classList.add('swipe-delete');
+                } else {
+                    element.classList.remove('swipe-delete');
+                }
+
+                e.preventDefault();
+            }
+        };
+
+        // 触摸结束事件
+        const touchEndHandler = function() {
+            isDragging = false;
+            element.classList.remove('swiping');
+
+            // 清除长按定时器
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+
+            // 如果滑动距离超过阈值，保持删除状态
+            if (element.classList.contains('swipe-delete')) {
+                // 不做任何操作，保持删除状态直到用户确认或取消
+            } else {
+                // 重置状态
+                element.style.transform = '';
+            }
+        };
+
+        // 点击事件，用于处理删除确认按钮的点击
+        const clickHandler = function(e) {
+            if (e.target.closest('.swipe-delete-confirm')) {
+                const id = Number(e.target.closest('.swipe-delete-confirm').getAttribute('data-id'));
+                deleteSubscription(id);
+                e.stopPropagation();
+            } else if (element.classList.contains('swipe-delete')) {
+                // 点击其他区域取消删除状态
+                element.classList.remove('swipe-delete');
+                e.stopPropagation();
+                return false;
+            }
+        };
+
+        // 添加事件监听器
+        element.addEventListener('touchstart', touchStartHandler, { passive: false });
+        element.addEventListener('touchmove', touchMoveHandler, { passive: false });
+        element.addEventListener('touchend', touchEndHandler);
+        element.addEventListener('click', clickHandler);
+
+        // 保存监听器引用，以便后续移除
+        swipeListeners.push({
+            element,
+            listeners: {
+                touchstart: touchStartHandler,
+                touchmove: touchMoveHandler,
+                touchend: touchEndHandler,
+                click: clickHandler
+            }
+        });
+    }
+
+    // 移除所有滑动事件监听器
+    function removeAllSwipeListeners() {
+        swipeListeners.forEach(item => {
+            const { element, listeners } = item;
+            if (element) {
+                element.removeEventListener('touchstart', listeners.touchstart);
+                element.removeEventListener('touchmove', listeners.touchmove);
+                element.removeEventListener('touchend', listeners.touchend);
+                element.removeEventListener('click', listeners.click);
+            }
+        });
+        swipeListeners = [];
     }
 
     // --- 服务图标相关函数 ---
@@ -1362,32 +2200,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 通知设置相关事件处理
-    enableNotificationsCheckbox.addEventListener('change', toggleNotificationSettings);
-
-    // 测试通知按钮
-    testNotificationButton.addEventListener('click', function() {
-        if (Notification.permission !== 'granted') {
-            requestNotificationPermission().then(granted => {
-                if (granted) {
-                    sendTestNotification();
-                }
-            });
-        } else {
-            sendTestNotification();
-        }
-    });
+    // 这些事件监听器会在DOM元素初始化后添加
+    // 在initializeSettingsView函数中已经添加了这些事件监听器
 
     // --- 数据导入/导出功能 ---
 
-    // 导出为JSON
-    exportJsonButton.addEventListener('click', function() {
-        exportData('json');
-    });
-
-    // 导出为CSV
-    exportCsvButton.addEventListener('click', function() {
-        exportData('csv');
-    });
+    // 导出为JSON和CSV的事件监听器
+    // 这些事件监听器会在DOM元素初始化后添加
+    // 在initializeSettingsView函数中已经添加了这些事件监听器
 
     // 导出数据
     function exportData(format) {
@@ -1467,78 +2287,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${year}${month}${day}`;
     }
 
-    // 文件选择事件处理
-    importFileInput.addEventListener('change', function(event) {
-        const file = event.target.files[0];
-        if (file) {
-            selectedFileNameSpan.textContent = file.name;
-            importButton.disabled = false;
-
-            // 根据文件类型设置导入按钮文本
-            if (file.name.endsWith('.json')) {
-                importButton.textContent = '导入JSON数据';
-            } else if (file.name.endsWith('.csv')) {
-                importButton.textContent = '导入CSV数据';
-            } else {
-                importButton.textContent = '导入数据';
-                importButton.disabled = true;
-                importStatusDiv.textContent = '不支持的文件格式。请选择.json或.csv文件。';
-                importStatusDiv.className = 'import-status error';
-            }
-        } else {
-            selectedFileNameSpan.textContent = '未选择文件';
-            importButton.disabled = true;
-            importStatusDiv.textContent = '';
-            importStatusDiv.className = 'import-status';
-        }
-    });
-
-    // 导入按钮点击事件
-    importButton.addEventListener('click', function() {
-        const file = importFileInput.files[0];
-        if (!file) {
-            importStatusDiv.textContent = '请先选择文件。';
-            importStatusDiv.className = 'import-status error';
-            return;
-        }
-
-        const reader = new FileReader();
-
-        reader.onload = function(e) {
-            try {
-                const fileContent = e.target.result;
-
-                if (file.name.endsWith('.json')) {
-                    importJsonData(fileContent);
-                } else if (file.name.endsWith('.csv')) {
-                    importCsvData(fileContent);
-                } else {
-                    throw new Error('不支持的文件格式');
-                }
-
-                // 重置文件选择
-                importFileInput.value = '';
-                selectedFileNameSpan.textContent = '未选择文件';
-                importButton.disabled = true;
-
-            } catch (error) {
-                console.error('导入数据时出错:', error);
-                importStatusDiv.textContent = `导入失败: ${error.message}`;
-                importStatusDiv.className = 'import-status error';
-            }
-        };
-
-        reader.onerror = function() {
-            importStatusDiv.textContent = '读取文件时出错。';
-            importStatusDiv.className = 'import-status error';
-        };
-
-        if (file.name.endsWith('.json')) {
-            reader.readAsText(file);
-        } else if (file.name.endsWith('.csv')) {
-            reader.readAsText(file);
-        }
-    });
+    // 文件选择事件处理和导入按钮点击事件
+    // 这些事件监听器会在DOM元素初始化后添加
+    // 在initializeSettingsView函数中已经添加了这些事件监听器
 
     // 导入JSON数据
     function importJsonData(jsonString) {
@@ -1800,9 +2551,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 按分类筛选订阅
     function filterSubscriptionsByCategory(category) {
         if (category === 'all') {
-            return subscriptions;
+            return window.subscriptions;
         }
-        return subscriptions.filter(sub => sub.category === category);
+        return window.subscriptions.filter(sub => sub.category === category);
     }
 
     // 计算订阅的月度费用
@@ -1859,30 +2610,43 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateStatistics() {
         fetchExchangeRates().then(rates => {
             // 总订阅数
-            totalSubscriptionsElement.textContent = subscriptions.length;
+            if (window.totalSubscriptionsElement) {
+                window.totalSubscriptionsElement.textContent = window.subscriptions.length;
+            }
 
             // 计算月度和年度总支出
             let monthlyTotal = 0;
             let annualTotal = 0;
 
-            subscriptions.forEach(sub => {
+            window.subscriptions.forEach(sub => {
                 monthlyTotal += calculateMonthlyPrice(sub, rates);
                 annualTotal += calculateAnnualPrice(sub, rates);
             });
 
             // 更新显示
-            monthlyTotalElement.textContent = `${appSettings.localCurrency} ${monthlyTotal.toFixed(2)}`;
-            annualTotalElement.textContent = `${appSettings.localCurrency} ${annualTotal.toFixed(2)}`;
+            if (window.monthlyTotalElement) {
+                window.monthlyTotalElement.textContent = `${appSettings.localCurrency} ${monthlyTotal.toFixed(2)}`;
+            }
+            if (window.annualTotalElement) {
+                window.annualTotalElement.textContent = `${appSettings.localCurrency} ${annualTotal.toFixed(2)}`;
+            }
 
             // 更新图表
             updateCategoryChart(rates);
-            const selectedTimeRange = trendTimeRangeSelect ? trendTimeRangeSelect.value : '12m'; // 获取当前选定时间范围
+            const selectedTimeRange = window.trendTimeRangeSelect ? window.trendTimeRangeSelect.value : '12m'; // 获取当前选定时间范围
             updateTrendChart(rates, selectedTimeRange); // 传递时间范围
+
+            // 更新价值分析图表
+            const selectedAnalysisType = window.valueAnalysisTypeSelect ? window.valueAnalysisTypeSelect.value : 'price';
+            updateValueAnalysisChart(rates, selectedAnalysisType);
         });
     }
 
     // 更新分类图表
     function updateCategoryChart(rates) {
+        // 获取当前选择的图表类型
+        const chartType = window.categoryChartTypeSelect ? window.categoryChartTypeSelect.value : 'doughnut';
+
         // 按分类统计费用
         const categoryData = {};
         const categoryColors = {
@@ -1892,6 +2656,16 @@ document.addEventListener('DOMContentLoaded', () => {
             'lifestyle': 'rgba(46, 204, 113, 0.7)',
             'utility': 'rgba(241, 196, 15, 0.7)',
             'other': 'rgba(149, 165, 166, 0.7)'
+        };
+
+        // 边框颜色（用于某些图表类型）
+        const categoryBorderColors = {
+            'entertainment': 'rgb(231, 76, 60)',
+            'work': 'rgb(52, 152, 219)',
+            'education': 'rgb(155, 89, 182)',
+            'lifestyle': 'rgb(46, 204, 113)',
+            'utility': 'rgb(241, 196, 15)',
+            'other': 'rgb(149, 165, 166)'
         };
 
         subscriptions.forEach(sub => {
@@ -1909,61 +2683,127 @@ document.addEventListener('DOMContentLoaded', () => {
         const labels = [];
         const data = [];
         const backgroundColor = [];
+        const borderColor = [];
 
         for (const [category, amount] of Object.entries(categoryData)) {
             labels.push(getCategoryName(category));
             data.push(amount.toFixed(2));
             backgroundColor.push(categoryColors[category] || 'rgba(149, 165, 166, 0.7)');
+            borderColor.push(categoryBorderColors[category] || 'rgb(149, 165, 166)');
+        }
+
+        // 根据图表类型设置不同的配置
+        let chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: chartType === 'bar' ? 'top' : 'right',
+                    labels: {
+                        font: {
+                            size: 12
+                        },
+                        padding: 20
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.raw || 0;
+                            const total = context.chart.data.datasets[0].data.reduce((a, b) => parseFloat(a) + parseFloat(b), 0);
+                            const percentage = Math.round((value * 100) / total);
+                            return `${label}: ${appSettings.localCurrency} ${value} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        };
+
+        // 为柱状图添加特定配置
+        if (chartType === 'bar') {
+            chartOptions.scales = {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: `月度支出 (${appSettings.localCurrency})`
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return `${appSettings.localCurrency} ${value}`;
+                        }
+                    }
+                }
+            };
+        }
+
+        // 为极坐标图添加特定配置
+        if (chartType === 'polarArea') {
+            chartOptions.plugins.legend.position = 'right';
+            chartOptions.scales = {
+                r: {
+                    ticks: {
+                        callback: function(value) {
+                            return `${appSettings.localCurrency} ${value}`;
+                        }
+                    }
+                }
+            };
         }
 
         // 创建或更新图表
         if (window.categoryChart) {
-            window.categoryChart.data.labels = labels;
-            window.categoryChart.data.datasets[0].data = data;
-            window.categoryChart.data.datasets[0].backgroundColor = backgroundColor;
-            window.categoryChart.update();
+            // 如果图表类型改变，需要销毁旧图表并创建新图表
+            if (window.categoryChart.config.type !== chartType) {
+                window.categoryChart.destroy();
+                createCategoryChart(chartType, labels, data, backgroundColor, borderColor, chartOptions);
+            } else {
+                // 如果图表类型没变，只更新数据
+                window.categoryChart.data.labels = labels;
+                window.categoryChart.data.datasets[0].data = data;
+                window.categoryChart.data.datasets[0].backgroundColor = backgroundColor;
+                if (chartType === 'bar' || chartType === 'line') {
+                    window.categoryChart.data.datasets[0].borderColor = borderColor;
+                }
+                window.categoryChart.update();
+            }
         } else {
-            window.categoryChart = new Chart(categoryChartCanvas, {
-                type: 'doughnut',
+            createCategoryChart(chartType, labels, data, backgroundColor, borderColor, chartOptions);
+        }
+    }
+
+    // 创建分类图表的辅助函数
+    function createCategoryChart(chartType, labels, data, backgroundColor, borderColor, options) {
+        const datasetConfig = {
+            data: data,
+            backgroundColor: backgroundColor,
+            borderWidth: 1
+        };
+
+        // 为不同图表类型添加特定配置
+        if (chartType === 'bar') {
+            datasetConfig.borderColor = borderColor;
+            datasetConfig.borderWidth = 1;
+        }
+
+        if (window.categoryChartCanvas) {
+            window.categoryChart = new Chart(window.categoryChartCanvas, {
+                type: chartType,
                 data: {
                     labels: labels,
-                    datasets: [{
-                        data: data,
-                        backgroundColor: backgroundColor,
-                        borderWidth: 1
-                    }]
+                    datasets: [datasetConfig]
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'right',
-                            labels: {
-                                font: {
-                                    size: 12
-                                }
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const label = context.label || '';
-                                    const value = context.raw || 0;
-                                    const total = context.chart.data.datasets[0].data.reduce((a, b) => parseFloat(a) + parseFloat(b), 0);
-                                    const percentage = Math.round((value * 100) / total);
-                                    return `${label}: ${appSettings.localCurrency} ${value} (${percentage}%)`;
-                                }
-                            }
-                        }
-                    }
-                }
+                options: options
             });
         }
     }
 
     // 更新趋势图表
     function updateTrendChart(rates, timeRange = '12m') { // 添加 timeRange 参数，默认为 '12m'
+        // 获取当前选择的图表类型
+        const chartType = window.trendChartTypeSelect ? window.trendChartTypeSelect.value : 'line';
+
         const data = calculateTrendData(rates, timeRange);
 
         if (!data) {
@@ -1979,71 +2819,120 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const { labels, dataPoints } = data;
 
-        // 创建或更新图表
-        if (window.trendChart) {
-            window.trendChart.data.labels = labels;
-            window.trendChart.data.datasets[0].data = dataPoints;
-            window.trendChart.options.scales.x.title.text = getTimeRangeLabel(timeRange); // 更新X轴标题
-            window.trendChart.update();
-        } else {
-            window.trendChart = new Chart(trendChartCanvas, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: '月度支出',
-                        data: dataPoints,
-                        borderColor: 'rgba(52, 152, 219, 1)',
-                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: `支出 (${appSettings.localCurrency})`
-                            },
-                            ticks: {
-                                callback: function(value) {
-                                    return `${appSettings.localCurrency} ${value.toFixed(0)}`;
-                                }
-                            }
-                        },
-                        x: { // X轴配置
-                            title: {
-                                display: true,
-                                text: getTimeRangeLabel(timeRange) // 初始X轴标题
-                            }
-                        }
+        // 根据图表类型设置不同的配置
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: `支出 (${appSettings.localCurrency})`
                     },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                title: function(tooltipItems) {
-                                    // 自定义tooltip的标题，显示完整的月份和年份
-                                    return tooltipItems[0].label;
-                                },
-                                label: function(context) {
-                                    return `${context.dataset.label}: ${appSettings.localCurrency} ${context.raw.toFixed(2)}`;
-                                }
-                            }
+                    ticks: {
+                        callback: function(value) {
+                            return `${appSettings.localCurrency} ${value.toFixed(0)}`;
+                        }
+                    }
+                },
+                x: { // X轴配置
+                    title: {
+                        display: true,
+                        text: getTimeRangeLabel(timeRange) // 初始X轴标题
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            // 自定义tooltip的标题，显示完整的月份和年份
+                            return tooltipItems[0].label;
+                        },
+                        label: function(context) {
+                            return `${context.dataset.label}: ${appSettings.localCurrency} ${context.raw.toFixed(2)}`;
                         }
                     }
                 }
+            }
+        };
+
+        // 根据图表类型设置数据集配置
+        const datasetConfig = {
+            label: '月度支出',
+            data: dataPoints,
+            borderColor: 'rgba(52, 152, 219, 1)',
+            backgroundColor: 'rgba(52, 152, 219, 0.1)',
+            borderWidth: 2
+        };
+
+        // 为不同图表类型添加特定配置
+        if (chartType === 'line') {
+            datasetConfig.fill = true;
+            datasetConfig.tension = 0.3;
+        } else if (chartType === 'bar') {
+            datasetConfig.backgroundColor = 'rgba(52, 152, 219, 0.7)';
+            delete datasetConfig.tension;
+            delete datasetConfig.fill;
+        } else if (chartType === 'area') {
+            datasetConfig.fill = true;
+            datasetConfig.tension = 0.4;
+            datasetConfig.backgroundColor = 'rgba(52, 152, 219, 0.2)';
+            chartType = 'line'; // area实际上是填充的line类型
+        }
+
+        // 创建或更新图表
+        if (window.trendChart) {
+            // 如果图表类型改变，需要销毁旧图表并创建新图表
+            const currentType = window.trendChart.config.type;
+            const needsRecreation =
+                (currentType !== chartType) ||
+                (chartType === 'line' && datasetConfig.fill !== window.trendChart.data.datasets[0].fill);
+
+            if (needsRecreation) {
+                window.trendChart.destroy();
+                if (window.trendChartCanvas) {
+                    window.trendChart = new Chart(window.trendChartCanvas, {
+                        type: chartType,
+                        data: {
+                            labels: labels,
+                            datasets: [datasetConfig]
+                        },
+                        options: chartOptions
+                    });
+                }
+            } else {
+                // 如果图表类型没变，只更新数据和选项
+                window.trendChart.data.labels = labels;
+                window.trendChart.data.datasets[0].data = dataPoints;
+
+                // 更新数据集配置
+                Object.keys(datasetConfig).forEach(key => {
+                    if (key !== 'data' && key !== 'label') {
+                        window.trendChart.data.datasets[0][key] = datasetConfig[key];
+                    }
+                });
+
+                // 更新X轴标题
+                window.trendChart.options.scales.x.title.text = getTimeRangeLabel(timeRange);
+                window.trendChart.update();
+            }
+        } else if (window.trendChartCanvas) {
+            window.trendChart = new Chart(window.trendChartCanvas, {
+                type: chartType,
+                data: {
+                    labels: labels,
+                    datasets: [datasetConfig]
+                },
+                options: chartOptions
             });
         }
     }
 
     // 为趋势图表计算数据的辅助函数
     function calculateTrendData(rates, timeRange) {
-        if (subscriptions.length === 0) return null;
+        if (window.subscriptions.length === 0) return null;
 
         const now = new Date();
         let startDate = new Date();
@@ -2068,8 +2957,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'all':
                 // 找到所有订阅中最早的开始日期
-                if (subscriptions.length > 0) {
-                    const earliestSubscriptionDate = subscriptions.reduce((earliest, sub) => {
+                if (window.subscriptions.length > 0) {
+                    const earliestSubscriptionDate = window.subscriptions.reduce((earliest, sub) => {
                         if (sub.startDate) {
                             const subDate = new Date(sub.startDate);
                             return subDate < earliest ? subDate : earliest;
@@ -2094,7 +2983,7 @@ document.addEventListener('DOMContentLoaded', () => {
             labels.push(monthName);
 
             let monthlyTotal = 0;
-            subscriptions.forEach(sub => {
+            window.subscriptions.forEach(sub => {
                 if (!sub.startDate) return;
 
                 const subStartDate = new Date(sub.startDate);
@@ -2110,7 +2999,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const subExpiryDate = new Date(sub.expiryDate);
                     isNotEnded = subExpiryDate >= new Date(year, month, 1); // 月初
                 }
-                
+
                 // 如果是一次性订阅，则仅在其开始的那个月计算
                 if (sub.billingCycle === 'one-time') {
                     if (subStartDate.getFullYear() === year && subStartDate.getMonth() === month) {
@@ -2148,19 +3037,239 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 分类筛选事件处理
-    categoryFilterSelect.addEventListener('change', function() {
-        const selectedCategory = this.value;
-        renderSubscriptions(selectedCategory);
-    });
+    if (window.categoryFilterSelect) {
+        window.categoryFilterSelect.addEventListener('change', function() {
+            const selectedCategory = this.value;
+            renderSubscriptions(selectedCategory);
+        });
+    }
 
     // 新增：趋势图表时间范围选择器事件处理
-    if (trendTimeRangeSelect) {
-        trendTimeRangeSelect.addEventListener('change', function() {
+    if (window.trendTimeRangeSelect) {
+        window.trendTimeRangeSelect.addEventListener('change', function() {
             // 当时间范围改变时，仅需要更新趋势图表
             fetchExchangeRates().then(rates => {
                 updateTrendChart(rates, this.value);
             });
         });
+    }
+
+    // 新增：分类图表类型选择器事件处理
+    if (window.categoryChartTypeSelect) {
+        window.categoryChartTypeSelect.addEventListener('change', function() {
+            // 当图表类型改变时，仅需要更新分类图表
+            fetchExchangeRates().then(rates => {
+                updateCategoryChart(rates);
+            });
+        });
+    }
+
+    // 新增：趋势图表类型选择器事件处理
+    if (window.trendChartTypeSelect) {
+        window.trendChartTypeSelect.addEventListener('change', function() {
+            // 当图表类型改变时，仅需要更新趋势图表
+            fetchExchangeRates().then(rates => {
+                const selectedTimeRange = window.trendTimeRangeSelect ? window.trendTimeRangeSelect.value : '12m';
+                updateTrendChart(rates, selectedTimeRange);
+            });
+        });
+    }
+
+    // 新增：价值分析类型选择器事件处理
+    if (window.valueAnalysisTypeSelect) {
+        window.valueAnalysisTypeSelect.addEventListener('change', function() {
+            // 当分析类型改变时，更新价值分析图表
+            fetchExchangeRates().then(rates => {
+                updateValueAnalysisChart(rates, this.value);
+            });
+        });
+    }
+
+    // 新增：价值分析图表
+    function updateValueAnalysisChart(rates, analysisType = 'price') {
+        if (window.subscriptions.length === 0) {
+            if (window.valueAnalysisChart) {
+                window.valueAnalysisChart.data.labels = [];
+                window.valueAnalysisChart.data.datasets[0].data = [];
+                window.valueAnalysisChart.update();
+            }
+            return;
+        }
+
+        // 根据分析类型准备数据
+        let chartData;
+        let chartOptions;
+
+        switch (analysisType) {
+            case 'price':
+                chartData = prepareValueByPriceData(rates);
+                chartOptions = getPriceAnalysisOptions();
+                break;
+            case 'frequency':
+                chartData = prepareValueByFrequencyData();
+                chartOptions = getFrequencyAnalysisOptions();
+                break;
+            case 'value':
+                chartData = prepareValueByRatingData();
+                chartOptions = getValueAnalysisOptions();
+                break;
+            default:
+                chartData = prepareValueByPriceData(rates);
+                chartOptions = getPriceAnalysisOptions();
+        }
+
+        // 创建或更新图表
+        if (window.valueAnalysisChartCanvas) {
+            if (window.valueAnalysisChart) {
+                window.valueAnalysisChart.destroy();
+                window.valueAnalysisChart = new Chart(window.valueAnalysisChartCanvas, {
+                    type: 'bar',
+                    data: chartData,
+                    options: chartOptions
+                });
+            } else {
+                window.valueAnalysisChart = new Chart(window.valueAnalysisChartCanvas, {
+                    type: 'bar',
+                    data: chartData,
+                    options: chartOptions
+                });
+            }
+        }
+    }
+
+    // 准备价格分析数据
+    function prepareValueByPriceData(rates) {
+        // 按价格排序订阅
+        const sortedSubscriptions = [...window.subscriptions].sort((a, b) => {
+            const priceA = calculateMonthlyPrice(a, rates);
+            const priceB = calculateMonthlyPrice(b, rates);
+            return priceB - priceA; // 从高到低排序
+        });
+
+        // 只取前10个
+        const topSubscriptions = sortedSubscriptions.slice(0, 10);
+
+        const labels = topSubscriptions.map(sub => sub.name);
+        const data = topSubscriptions.map(sub => calculateMonthlyPrice(sub, rates).toFixed(2));
+
+        return {
+            labels: labels,
+            datasets: [{
+                label: '月度支出',
+                data: data,
+                backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                borderColor: 'rgba(52, 152, 219, 1)',
+                borderWidth: 1
+            }]
+        };
+    }
+
+    // 准备使用频率分析数据
+    function prepareValueByFrequencyData() {
+        // 这里我们使用模拟数据，实际应用中应该从用户的使用记录中获取
+        // 在未来版本中，可以添加用户记录使用频率的功能
+        const labels = window.subscriptions.slice(0, 10).map(sub => sub.name);
+        const data = window.subscriptions.slice(0, 10).map(() => Math.floor(Math.random() * 30)); // 模拟每月使用天数
+
+        return {
+            labels: labels,
+            datasets: [{
+                label: '每月使用天数',
+                data: data,
+                backgroundColor: 'rgba(46, 204, 113, 0.7)',
+                borderColor: 'rgba(46, 204, 113, 1)',
+                borderWidth: 1
+            }]
+        };
+    }
+
+    // 准备价值评估分析数据
+    function prepareValueByRatingData() {
+        // 这里我们使用模拟数据，实际应用中应该从用户的评分中获取
+        // 在未来版本中，可以添加用户对订阅进行评分的功能
+        const labels = window.subscriptions.slice(0, 10).map(sub => sub.name);
+        const data = window.subscriptions.slice(0, 10).map(() => (Math.random() * 5).toFixed(1)); // 模拟评分（0-5分）
+
+        return {
+            labels: labels,
+            datasets: [{
+                label: '价值评分 (0-5)',
+                data: data,
+                backgroundColor: 'rgba(155, 89, 182, 0.7)',
+                borderColor: 'rgba(155, 89, 182, 1)',
+                borderWidth: 1
+            }]
+        };
+    }
+
+    // 价格分析图表选项
+    function getPriceAnalysisOptions() {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y', // 水平条形图
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: `月度支出 (${appSettings.localCurrency})`
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return `${appSettings.localCurrency} ${value}`;
+                        }
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.dataset.label}: ${appSettings.localCurrency} ${context.raw}`;
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    // 使用频率分析图表选项
+    function getFrequencyAnalysisOptions() {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y', // 水平条形图
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    max: 30,
+                    title: {
+                        display: true,
+                        text: '每月使用天数'
+                    }
+                }
+            }
+        };
+    }
+
+    // 价值评估分析图表选项
+    function getValueAnalysisOptions() {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y', // 水平条形图
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    max: 5,
+                    title: {
+                        display: true,
+                        text: '价值评分 (0-5)'
+                    }
+                }
+            }
+        };
     }
 
     // --- 预设服务功能 ---
@@ -2272,20 +3381,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 确保预设服务模态框相关元素存在并绑定事件
-    if (showPresetModalBtn) {
+    if (window.showPresetModalBtn) {
         console.log("绑定'库'按钮点击事件");
-        showPresetModalBtn.addEventListener('click', function() {
+        window.showPresetModalBtn.addEventListener('click', function() {
             console.log("点击了'库'按钮");
-            if (presetServiceModal) {
+            if (window.presetServiceModal) {
                 // 使用多种方式确保模态框显示
-                presetServiceModal.classList.remove('hidden');
-                presetServiceModal.style.display = 'flex';
+                window.presetServiceModal.classList.remove('hidden');
+                window.presetServiceModal.style.display = 'flex';
                 console.log("模态框显示状态:",
-                    "classList包含hidden:", presetServiceModal.classList.contains('hidden'),
-                    "style.display:", presetServiceModal.style.display);
+                    "classList包含hidden:", window.presetServiceModal.classList.contains('hidden'),
+                    "style.display:", window.presetServiceModal.style.display);
 
-                if (searchPresetServiceInput) {
-                    searchPresetServiceInput.value = ''; // 清空搜索框
+                if (window.searchPresetServiceInput) {
+                    window.searchPresetServiceInput.value = ''; // 清空搜索框
                 }
 
                 // 先渲染预设服务列表，再显示模态框
@@ -2293,10 +3402,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // 使用setTimeout确保DOM更新后再聚焦搜索框
                 setTimeout(function() {
-                    if (searchPresetServiceInput) {
-                        searchPresetServiceInput.style.display = 'block';
-                        searchPresetServiceInput.focus();
-                        console.log("搜索框聚焦，显示状态:", searchPresetServiceInput.style.display);
+                    if (window.searchPresetServiceInput) {
+                        window.searchPresetServiceInput.style.display = 'block';
+                        window.searchPresetServiceInput.focus();
+                        console.log("搜索框聚焦，显示状态:", window.searchPresetServiceInput.style.display);
                     }
                 }, 100);
             } else {
@@ -2307,63 +3416,63 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error("'库'按钮元素不存在");
     }
 
-    if (closePresetModalBtn) {
+    if (window.closePresetModalBtn) {
         console.log("绑定关闭按钮点击事件");
-        closePresetModalBtn.addEventListener('click', function() {
+        window.closePresetModalBtn.addEventListener('click', function() {
             console.log("点击了关闭按钮");
-            if (presetServiceModal) {
+            if (window.presetServiceModal) {
                 // 使用多种方式确保模态框隐藏
-                presetServiceModal.classList.add('hidden');
-                presetServiceModal.style.display = 'none';
+                window.presetServiceModal.classList.add('hidden');
+                window.presetServiceModal.style.display = 'none';
                 console.log("模态框隐藏状态:",
-                    "classList包含hidden:", presetServiceModal.classList.contains('hidden'),
-                    "style.display:", presetServiceModal.style.display);
+                    "classList包含hidden:", window.presetServiceModal.classList.contains('hidden'),
+                    "style.display:", window.presetServiceModal.style.display);
             }
         });
     } else {
         console.error("关闭按钮元素不存在");
     }
 
-    if (presetServiceModal) {
+    if (window.presetServiceModal) {
         console.log("绑定模态框背景点击事件");
-        presetServiceModal.addEventListener('click', function(event) {
+        window.presetServiceModal.addEventListener('click', function(event) {
             // 如果点击的是模态框背景（而不是内容区域），则关闭模态框
-            if (event.target === presetServiceModal) {
+            if (event.target === window.presetServiceModal) {
                 console.log("点击了模态框背景");
                 // 使用多种方式确保模态框隐藏
-                presetServiceModal.classList.add('hidden');
-                presetServiceModal.style.display = 'none';
+                window.presetServiceModal.classList.add('hidden');
+                window.presetServiceModal.style.display = 'none';
                 console.log("模态框隐藏状态:",
-                    "classList包含hidden:", presetServiceModal.classList.contains('hidden'),
-                    "style.display:", presetServiceModal.style.display);
+                    "classList包含hidden:", window.presetServiceModal.classList.contains('hidden'),
+                    "style.display:", window.presetServiceModal.style.display);
             }
         });
     } else {
         console.error("预设服务模态框元素不存在");
     }
 
-    if (searchPresetServiceInput) {
+    if (window.searchPresetServiceInput) {
         console.log("绑定搜索框输入事件");
-        searchPresetServiceInput.addEventListener('input', function(event) {
+        window.searchPresetServiceInput.addEventListener('input', function(event) {
             console.log("搜索框输入: " + event.target.value);
             renderPresetServices(event.target.value);
         });
 
         // 确保搜索框可见
-        searchPresetServiceInput.style.display = 'block';
-        searchPresetServiceInput.style.visibility = 'visible';
-        searchPresetServiceInput.style.opacity = '1';
+        window.searchPresetServiceInput.style.display = 'block';
+        window.searchPresetServiceInput.style.visibility = 'visible';
+        window.searchPresetServiceInput.style.opacity = '1';
     } else {
         console.error("搜索框元素不存在");
     }
 
     // 初始化时设置模态框和搜索框的样式
-    if (presetServiceModal) {
+    if (window.presetServiceModal) {
         // 确保模态框初始状态正确
-        if (presetServiceModal.classList.contains('hidden')) {
-            presetServiceModal.style.display = 'none';
+        if (window.presetServiceModal.classList.contains('hidden')) {
+            window.presetServiceModal.style.display = 'none';
         } else {
-            presetServiceModal.style.display = 'flex';
+            window.presetServiceModal.style.display = 'flex';
         }
     }
 
@@ -2382,13 +3491,50 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(`应用主题: ${themeName}`);
     }
 
-    themeSelect.addEventListener('change', function() {
-        const selectedTheme = this.value;
-        applyTheme(selectedTheme);
-        appSettings.theme = selectedTheme;
-        // 注意：这里不直接调用saveSettings()，因为用户可能还在修改其他设置
-        // 主题的持久化将在点击"保存设置"按钮时统一处理，或者如果希望立即保存，可以单独保存主题设置
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings)); // 立即保存主题，以便下次加载时生效
-        console.log(`主题已更改为: ${selectedTheme} 并已保存`);
-    });
+    if (window.themeSelect) {
+        window.themeSelect.addEventListener('change', function() {
+            const selectedTheme = this.value;
+            applyTheme(selectedTheme);
+            appSettings.theme = selectedTheme;
+            // 注意：这里不直接调用saveSettings()，因为用户可能还在修改其他设置
+            // 主题的持久化将在点击"保存设置"按钮时统一处理，或者如果希望立即保存，可以单独保存主题设置
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings)); // 立即保存主题，以便下次加载时生效
+            console.log(`主题已更改为: ${selectedTheme} 并已保存`);
+        });
+    }
+
+    // 注意：这些函数已经在前面定义过，这里是重复定义，已被注释掉
+    // function initializeSettingsView() {
+    //     console.log("Settings View elements would be initialized here.");
+    //     loadSettings();
+    //     updateApiUsageInfo();
+    // }
+
+    // function initializeAnalysisView() {
+    //     console.log("Analysis View elements would be initialized here.");
+    //     updateStatistics();
+    // }
+
+    // function initializeDiscoveryView() {
+    //     console.log("Discovery View elements would be initialized here (placeholder).");
+    // }
+
+    // --- Global Helper Functions (some will need refactoring) ---
+    // 初始化应用
+    function initializeApp() {
+        loadSettings(); // Load global app settings first (applies theme)
+        loadExchangeRatesCache();
+        loadIconsCache();
+        loadSubscriptions(); // Load subscription data (may trigger async icon fetching and re-render)
+
+        // Initial render for the default view (subscriptions) is done after data load.
+        // View-specific element initialization for defaultView already called by view switching logic above.
+        renderSubscriptions(); // Render initial list.
+        // updateStatistics(); // Not called initially, will be called by initializeAnalysisView when that view is shown.
+
+        setupNotificationChecker(); // Global notification checker
+    }
+
+    // 当DOM加载完成后初始化应用
+    document.addEventListener('DOMContentLoaded', initializeApp);
 });

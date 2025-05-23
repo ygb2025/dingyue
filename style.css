@@ -395,8 +395,14 @@ section h2 {
     box-sizing: border-box;
     border-radius: var(--border-radius);
     font-size: 1em;
-    transition: var(--transition);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
     background-color: var(--bg-light);
+}
+
+#add-subscription-form input:hover,
+#add-subscription-form select:hover,
+#add-subscription-form textarea:hover {
+    border-color: var(--primary-color);
 }
 
 #add-subscription-form input:focus,
@@ -405,6 +411,7 @@ section h2 {
     border-color: var(--primary-color);
     outline: none;
     box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+    transform: translateY(-1px);
 }
 
 #add-subscription-form select {
@@ -430,16 +437,38 @@ section h2 {
     cursor: pointer;
     font-size: 1em;
     font-weight: 600;
-    transition: var(--transition);
+    transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     width: 100%;
     margin-top: 10px;
+    position: relative;
+    overflow: hidden;
+}
+
+#add-subscription-form button[type="submit"]::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.2) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    transition: left 0.7s ease;
 }
 
 #add-subscription-form button[type="submit"]:hover {
     background-color: var(--secondary-dark);
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+#add-subscription-form button[type="submit"]:hover::before {
+    left: 100%;
 }
 
 #add-subscription-form button[type="submit"]:active {
@@ -455,14 +484,65 @@ section h2 {
     margin-bottom: 15px;
     border-radius: var(--border-radius);
     box-shadow: var(--box-shadow);
-    transition: var(--transition);
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease, margin-left 0.3s ease;
     position: relative;
     overflow: hidden;
+    animation: fadeIn 0.5s ease-out;
+    touch-action: pan-y; /* 允许垂直滚动，但水平滑动会被捕获 */
+}
+
+/* 滑动状态 */
+.subscription-item.swiping {
+    cursor: grabbing;
+}
+
+/* 滑动删除状态 */
+.subscription-item.swipe-delete {
+    margin-left: 80px;
+    opacity: 0.7;
+    border-color: var(--danger-color);
+}
+
+/* 滑动删除确认按钮 */
+.swipe-delete-confirm {
+    position: absolute;
+    left: -80px;
+    top: 0;
+    width: 80px;
+    height: 100%;
+    background-color: var(--danger-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.subscription-item.swipe-delete .swipe-delete-confirm {
+    opacity: 1;
+}
+
+/* 长按编辑状态 */
+.subscription-item.long-press-active {
+    transform: scale(0.98);
+    background-color: rgba(52, 152, 219, 0.1);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+    transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .subscription-item:hover {
     transform: translateY(-3px);
     box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+    border-color: var(--primary-color);
 }
 
 /* 订阅条目头部样式 */
@@ -593,11 +673,42 @@ section h2 {
     cursor: pointer;
     font-size: 0.9em;
     font-weight: 500;
-    transition: var(--transition);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.subscription-item .actions button::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.5);
+    opacity: 0;
+    border-radius: 100%;
+    transform: scale(1, 1) translate(-50%, -50%);
+    transform-origin: 50% 50%;
+}
+
+.subscription-item .actions button:focus:not(:active)::after {
+    animation: ripple 0.6s ease-out;
+}
+
+@keyframes ripple {
+    0% {
+        transform: scale(0, 0) translate(-50%, -50%);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(20, 20) translate(-50%, -50%);
+        opacity: 0;
+    }
 }
 
 .subscription-item .actions button.delete-btn {
@@ -973,19 +1084,55 @@ footer {
 }
 
 .chart-container {
+    background-color: var(--bg-light);
+    border-radius: var(--border-radius);
+    padding: 20px;
     margin-bottom: 30px; /* 给图表容器之间增加一些间距 */
+    box-shadow: var(--box-shadow);
+    height: 350px; /* 增加高度以适应更多控件 */
+    transition: height 0.3s ease, box-shadow 0.3s ease;
+}
+
+.chart-container:hover {
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+.chart-container h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: var(--text-color);
+    font-size: 1.2em;
+    display: flex;
+    align-items: center;
+}
+
+.chart-container h3::after {
+    content: '';
+    flex-grow: 1;
+    height: 1px;
+    background-color: var(--border-color);
+    margin-left: 10px;
 }
 
 .chart-controls {
     margin-bottom: 15px;
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 10px; /* 标签和选择框之间的间距 */
+}
+
+.chart-control-group {
+    display: flex;
+    align-items: center;
+    margin-right: 15px;
 }
 
 .chart-controls label {
     font-weight: 600;
     color: var(--text-color);
+    white-space: nowrap;
+    margin-right: 10px;
 }
 
 .chart-controls select {
@@ -1001,6 +1148,12 @@ footer {
     background-position: right 10px center;
     background-size: 14px;
     padding-right: 30px; /* 为下拉箭头留出空间 */
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    cursor: pointer;
+}
+
+.chart-controls select:hover {
+    border-color: var(--primary-color);
 }
 
 .chart-controls select:focus {
@@ -1064,6 +1217,58 @@ body[data-theme="dark"] {
 
 .hidden {
     display: none !important;
+}
+
+/* 页面切换动画 */
+.view-content {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.view-content.slide-in {
+    animation: slideIn 0.3s forwards;
+}
+
+@keyframes slideIn {
+    0% {
+        opacity: 0.5;
+        transform: translateX(20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* 触摸反馈 */
+.touch-active {
+    opacity: 0.7;
+    transform: scale(0.98);
+}
+
+/* 涟漪效果 */
+.ripple-effect {
+    position: absolute;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.4);
+    transform: scale(0);
+    animation: ripple 0.6s linear;
+    pointer-events: none;
+    z-index: 10;
+}
+
+@keyframes ripple {
+    to {
+        transform: scale(2);
+        opacity: 0;
+    }
+}
+
+/* 删除动画 */
+.subscription-item.deleting {
+    transition: all 0.3s ease;
+    overflow: hidden;
+    opacity: 0.5;
+    transform: translateX(-100%);
 }
 
 /* 响应式布局调整 */
