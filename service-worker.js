@@ -197,7 +197,8 @@ self.addEventListener('notificationclick', event => {
     clients.matchAll({ type: 'window' }).then(clientList => {
       // 如果已经有打开的窗口，则聚焦到该窗口
       for (const client of clientList) {
-        if (client.url === '/' && 'focus' in client) {
+        // 检查URL是否匹配当前部署路径
+        if ((client.url.endsWith('/') || client.url.endsWith('/index.html')) && 'focus' in client) {
           return client.focus();
         }
       }

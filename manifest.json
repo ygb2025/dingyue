@@ -3,7 +3,7 @@
   "short_name": "订阅管理",
   "description": "管理您的所有订阅服务，跟踪费用和到期日期",
   "lang": "zh-CN",
-  "start_url": "/index.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#3498db",
