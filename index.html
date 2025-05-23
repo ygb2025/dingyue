@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>订阅管理</title>
+    <meta name="description" content="管理您的所有订阅服务，跟踪费用和到期日期">
+    <meta name="theme-color" content="#3498db">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="订阅管理">
+
+    <!-- PWA 图标 -->
+    <link rel="icon" href="icons/icon-72x72.png" type="image/png">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- 应用样式 -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>我的订阅服务</h1>
+        <button id="settings-toggle" class="settings-toggle">设置</button>
+    </header>
+
+    <div id="notification-panel" class="notification-panel hidden">
+        <div class="notification-header">
+            <h3>需要关注的订阅</h3>
+            <button id="close-notification" class="close-notification">&times;</button>
+        </div>
+        <div id="notification-content" class="notification-content">
+            <!-- 即将到期和已过期的订阅将在这里显示 -->
+        </div>
+    </div>
+
+    <div id="settings-panel" class="settings-panel hidden">
+        <h2>设置</h2>
+        <div>
+            <label for="local-currency">本地货币:</label>
+            <input type="text" id="local-currency" name="local-currency" placeholder="例如: CNY, USD" value="CNY">
+        </div>
+        <div>
+            <label for="api-key">汇率 API Key (exchangerate-api.com):</label>
+            <input type="text" id="api-key" name="api-key" placeholder="在此输入您的 API Key" value="ca228e734975f64f02e34368">
+            <small class="form-hint">默认API Key已预设，每月可使用1,500次请求。如需无限制刷新，请使用自己的API Key。</small>
+        </div>
+        <div class="checkbox-container">
+            <input type="checkbox" id="developer-mode" name="developer-mode">
+            <label for="developer-mode">开发者模式（允许无限制刷新汇率，仅限使用自己的API Key）</label>
+        </div>
+
+        <h3 class="settings-section-title">通知设置</h3>
+        <div class="checkbox-container">
+            <input type="checkbox" id="enable-notifications" name="enable-notifications">
+            <label for="enable-notifications">启用浏览器桌面通知</label>
+        </div>
+        <div class="notification-settings" id="notification-settings">
+            <div>
+                <label for="notification-days">提前多少天发送到期提醒：</label>
+                <input type="number" id="notification-days" name="notification-days" min="1" max="30" value="7">
+                <small class="form-hint">设置在订阅到期前多少天发送通知（1-30天）</small>
+            </div>
+            <div class="checkbox-container">
+                <input type="checkbox" id="notification-daily" name="notification-daily">
+                <label for="notification-daily">对已过期订阅每天发送提醒</label>
+            </div>
+            <button id="test-notification" class="secondary-button">测试通知</button>
+            <p class="notification-status" id="notification-status"></p>
+        </div>
+
+        <h3 class="settings-section-title">数据管理</h3>
+        <div class="data-management">
+            <div class="data-export">
+                <h4>导出数据</h4>
+                <p>将您的订阅数据导出为文件，方便备份或迁移。</p>
+                <div class="export-buttons">
+                    <button id="export-json" class="secondary-button">导出为JSON</button>
+                    <button id="export-csv" class="secondary-button">导出为CSV</button>
+                </div>
+            </div>
+            <div class="data-import">
+                <h4>导入数据</h4>
+                <p>从之前导出的文件中恢复您的订阅数据。</p>
+                <div class="import-container">
+                    <label for="import-file" class="file-input-label">选择文件</label>
+                    <input type="file" id="import-file" accept=".json,.csv" class="file-input">
+                    <span id="selected-file-name">未选择文件</span>
+                </div>
+                <div class="import-options">
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="import-replace" name="import-replace">
+                        <label for="import-replace">替换现有数据（否则合并）</label>
+                    </div>
+                    <button id="import-button" class="secondary-button" disabled>导入数据</button>
+                </div>
+                <p id="import-status" class="import-status"></p>
+            </div>
+        </div>
+
+        <h3 class="settings-section-title">主题设置</h3>
+        <div class="theme-settings">
+            <label for="theme-select">选择主题:</label>
+            <select id="theme-select" name="theme-select">
+                <option value="light">亮色主题</option>
+                <option value="dark">暗色主题</option>
+                <option value="gemini-colorful">Gemini 彩色</option>
+            </select>
+        </div>
+
+        <h3 class="settings-section-title">API使用情况</h3>
+        <div class="api-usage-info">
+            <p>API使用情况：<span id="api-call-count">0</span> 次调用</p>
+            <p>刷新频率：<span id="refresh-frequency">每12小时</span></p>
+            <p>上次刷新：<span id="last-refresh-time">从未刷新</span></p>
+            <small class="form-hint">
+                刷新规则：<br>
+                - 使用自己的API Key且开启开发者模式：无限制刷新<br>
+                - 使用默认API Key且调用次数少于500次：每12小时刷新一次<br>
+                - 使用默认API Key且调用次数达到500次：每24小时刷新一次
+            </small>
+        </div>
+        <div class="settings-actions">
+            <button id="save-settings">保存设置</button>
+            <button id="refresh-rates" class="secondary-button">刷新汇率数据</button>
+        </div>
+        <div id="rates-status" class="rates-status"></div>
+    </div>
+
+    <main>
+        <section id="add-subscription-section">
+            <h2>添加新订阅</h2>
+            <form id="add-subscription-form">
+                <div class="form-group form-group-service-name">
+                    <label for="service-name">服务名称:</label>
+                    <input type="text" id="service-name" name="service-name" required>
+                    <button type="button" id="show-preset-modal-btn" class="preset-select-btn" title="从库中选择">&#x1F4DA;</button> <!-- 书本图标 -->
+                </div>
+                <div>
+                    <label for="service-url">服务网址 (可选):</label>
+                    <input type="url" id="service-url" name="service-url" placeholder="例如: https://www.netflix.com">
+                    <small class="form-hint">提供网址可以帮助自动获取服务图标</small>
+                </div>
+                <div>
+                    <label for="price">价格:</label>
+                    <input type="number" id="price" name="price" step="0.01" required>
+                </div>
+                <div>
+                    <label for="currency">币种:</label>
+                    <input type="text" id="currency" name="currency" placeholder="例如: USD, CNY" required>
+                </div>
+                <div>
+                    <label for="billing-cycle">订阅周期:</label>
+                    <select id="billing-cycle" name="billing-cycle">
+                        <option value="monthly">每月</option>
+                        <option value="annually">每年</option>
+                        <option value="one-time">一次性</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="category">分类:</label>
+                    <select id="category" name="category">
+                        <option value="entertainment">娱乐</option>
+                        <option value="work">工作</option>
+                        <option value="education">教育</option>
+                        <option value="lifestyle">生活方式</option>
+                        <option value="utility">实用工具</option>
+                        <option value="other">其他</option>
+                    </select>
+                    <small class="form-hint">为订阅选择一个分类，以便更好地组织和统计</small>
+                </div>
+                <div>
+                    <label for="start-date">首次订阅日期:</label>
+                    <input type="date" id="start-date" name="start-date">
+                </div>
+                <div>
+                    <label for="expiry-date">到期日期 (可选):</label>
+                    <input type="date" id="expiry-date" name="expiry-date">
+                </div>
+                <div>
+                    <label for="payment-account">支付账户/方式 (可选):</label>
+                    <input type="text" id="payment-account" name="payment-account" placeholder="例如: 信用卡A, PayPal">
+                </div>
+                <div>
+                    <label for="price-history-notes">价格历史/说明 (可选):</label>
+                    <textarea id="price-history-notes" name="price-history-notes" rows="3" placeholder="例如: ¥50/月 (2023初鸟价), ¥70/月 (2024标准价)"></textarea>
+                </div>
+                <div>
+                    <label for="notes">备注 (可选):</label>
+                    <textarea id="notes" name="notes" rows="3"></textarea>
+                </div>
+                <button type="submit">添加订阅</button>
+            </form>
+        </section>
+
+        <section id="subscription-list-section">
+            <h2>订阅列表</h2>
+            <div class="filter-container">
+                <label for="category-filter">按分类筛选:</label>
+                <select id="category-filter">
+                    <option value="all">全部</option>
+                    <option value="entertainment">娱乐</option>
+                    <option value="work">工作</option>
+                    <option value="education">教育</option>
+                    <option value="lifestyle">生活方式</option>
+                    <option value="utility">实用工具</option>
+                    <option value="other">其他</option>
+                </select>
+            </div>
+            <div id="subscription-list">
+                <!-- 订阅条目将通过 JavaScript 动态添加 -->
+            </div>
+        </section>
+
+        <section id="statistics-section">
+            <h2>订阅统计</h2>
+            <div class="statistics-container">
+                <div class="statistics-summary">
+                    <div class="stat-card">
+                        <h3>总订阅数</h3>
+                        <div class="stat-value" id="total-subscriptions">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>月度总支出</h3>
+                        <div class="stat-value" id="monthly-total">¥0</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>年度总支出</h3>
+                        <div class="stat-value" id="annual-total">¥0</div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>按分类统计</h3>
+                    <canvas id="category-chart"></canvas>
+                </div>
+
+                <div class="chart-container">
+                    <h3>月度支出趋势</h3>
+                    <div class="chart-controls">
+                        <label for="trend-time-range">时间范围:</label>
+                        <select id="trend-time-range" name="trend-time-range">
+                            <option value="6m">过去 6 个月</option>
+                            <option value="12m" selected>过去 12 个月</option>
+                            <option value="ytd">今年以来</option>
+                            <option value="last_year">去年</option>
+                            <option value="all">所有时间</option>
+                        </select>
+                    </div>
+                    <canvas id="trend-chart"></canvas>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 预设服务选择模态框 -->
+    <div id="preset-service-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>从库中选择服务</h2>
+                <button id="close-preset-modal-btn" class="close-modal-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="search-preset-service" placeholder="搜索服务名称...">
+                <div id="preset-service-list" class="preset-service-list">
+                    <!-- 预设服务将通过 JavaScript 动态填充 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2024 订阅管理应用</p>
+    </footer>
+
+    <!-- Chart.js 库 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+    <!-- 应用脚本 -->
+    <script src="script.js"></script>
+</body>
+</html>
